@@ -1,0 +1,30 @@
+{
+  "name": "gotake-sdk-playground",
+  "version": "1.0.0",
+  "description": "Playground project demonstrating GoTake SDK basic usage",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "ts-node --transpile-only src/examples/index.ts",
+    "mint-ipnft": "ts-node --transpile-only src/examples/mint-ipnft.ts",
+    "create-tba": "ts-node --transpile-only src/examples/create-tba.ts",
+    "check-tba": "ts-node --transpile-only src/examples/check-tba.ts",
+    "upload-video": "ts-node --transpile-only src/examples/upload-video.ts",
+    "full-flow": "ts-node --transpile-only src/examples/full-flow.ts"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@gotake/gotake-sdk": "0.0.6",
+    "dotenv": "^16.3.1",
+    "ethers": "^5.7.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.2"
+  },
+  "resolutions": {
+    "ethers": "^5.7.2"
+  }
+}
