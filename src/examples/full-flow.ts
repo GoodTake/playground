@@ -3,7 +3,7 @@
  * Upload video -> Process -> Mint IPNFT -> Create TBA
  */
 
-const { GoTakeSDK } = require('@gotake/gotake-sdk/dist/src/index.js');
+import { GoTakeSDK } from '@gotake/gotake-sdk';
 import { config } from './config';
 
 async function fullFlow() {
