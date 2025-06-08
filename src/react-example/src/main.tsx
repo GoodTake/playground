@@ -11,6 +11,8 @@ import '@rainbow-me/rainbowkit/styles.css'
 // Minimal polyfill for browser environment (SDK 0.0.9+ should handle most compatibility)
 if (typeof window !== 'undefined') {
     window.global = window.global || window;
+    // Enable dark mode by default
+    document.documentElement.classList.add('dark');
 }
 
 const queryClient = new QueryClient()

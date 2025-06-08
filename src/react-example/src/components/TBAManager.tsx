@@ -126,50 +126,50 @@ export function TBAManager({ sdk }: TBAManagerProps) {
     }, [sdk])
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8">
             {/* Create New TBA */}
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center space-x-2">
-                        <Plus className="h-5 w-5" />
-                        <span>Create TBA</span>
+                        <Plus className="h-4 w-4 text-gray-500" />
+                        <span className="text-sm">Create TBA</span>
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                         {/* NFT Contract Address */}
                         <div>
-                            <label className="text-sm font-medium">NFT Contract Address</label>
+                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">NFT Contract Address</label>
                             <input
                                 type="text"
                                 placeholder="IPNFT contract address"
                                 value={tokenContract}
                                 onChange={(e) => setTokenContract(e.target.value)}
-                                className="w-full mt-1 px-3 py-2 border border-input rounded-md bg-background text-sm font-mono"
+                                className="w-full mt-2 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-950 text-sm font-mono text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent transition-colors"
                             />
                         </div>
 
                         {/* Token ID */}
                         <div>
-                            <label className="text-sm font-medium">Token ID</label>
+                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Token ID</label>
                             <input
                                 type="number"
                                 placeholder="Enter NFT Token ID"
                                 value={tokenId}
                                 onChange={(e) => setTokenId(e.target.value)}
-                                className="w-full mt-1 px-3 py-2 border border-input rounded-md bg-background text-sm"
+                                className="w-full mt-2 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-950 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent transition-colors"
                             />
                         </div>
 
                         {/* Salt input */}
                         <div>
-                            <label className="text-sm font-medium">Salt Value</label>
+                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Salt Value</label>
                             <input
                                 type="text"
                                 placeholder="Enter salt value (1, 2, 3, etc.)"
                                 value={newSalt}
                                 onChange={(e) => setNewSalt(e.target.value)}
-                                className="w-full mt-1 px-3 py-2 border border-input rounded-md bg-background text-sm"
+                                className="w-full mt-2 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-950 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent transition-colors"
                             />
                         </div>
 
@@ -182,7 +182,7 @@ export function TBAManager({ sdk }: TBAManagerProps) {
                             {creating ? 'Creating...' : 'Create TBA'}
                         </Button>
 
-                        <div className="text-sm text-muted-foreground space-y-1">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-mono space-y-2 leading-relaxed">
                             <p>• TBA address is computed from (contract, tokenId, salt)</p>
                             <p>• Different salt values create different TBA addresses</p>
                             <p>• Works with any ERC-721 NFT contract</p>
@@ -196,8 +196,8 @@ export function TBAManager({ sdk }: TBAManagerProps) {
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle className="flex items-center space-x-2">
-                        <Hash className="h-5 w-5" />
-                        <span>My TBAs</span>
+                        <Hash className="h-4 w-4 text-gray-500" />
+                        <span className="text-sm">My TBAs</span>
                     </CardTitle>
                     <Button
                         variant="outline"
@@ -206,56 +206,56 @@ export function TBAManager({ sdk }: TBAManagerProps) {
                         disabled={loading}
                     >
                         {loading ? (
-                            <RefreshCw className="h-4 w-4 animate-spin" />
+                            <RefreshCw className="h-3 w-3 animate-spin" />
                         ) : (
-                            <RefreshCw className="h-4 w-4" />
+                            <RefreshCw className="h-3 w-3" />
                         )}
-                        Refresh
+                        <span className="ml-1 text-xs">Refresh</span>
                     </Button>
                 </CardHeader>
                 <CardContent>
                     {tbas.length === 0 ? (
                         <div className="text-center py-8">
-                            <p className="text-muted-foreground">No TBAs found</p>
-                            <p className="text-sm text-muted-foreground mt-1">
+                            <p className="text-gray-500 dark:text-gray-400 font-mono text-sm">No TBAs found</p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 font-mono">
                                 Create your first TBA above
                             </p>
                         </div>
                     ) : (
                         <div className="space-y-4">
                             {tbas.map((tba, index) => (
-                                <div key={index} className="border rounded-lg p-4">
+                                <div key={index} className="border border-gray-200 dark:border-gray-800 rounded p-4 bg-gray-50 dark:bg-gray-900">
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                         <div>
-                                            <p className="text-sm font-medium text-muted-foreground">TBA Address</p>
-                                            <p className="font-mono text-sm">{formatAddress(tba.address)}</p>
+                                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">TBA Address</p>
+                                            <p className="font-mono text-sm text-gray-900 dark:text-gray-100 mt-1">{formatAddress(tba.address)}</p>
                                         </div>
                                         <div>
-                                            <p className="text-sm font-medium text-muted-foreground">NFT Contract</p>
-                                            <p className="font-mono text-sm">{formatAddress(tba.tokenContract)}</p>
+                                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">NFT Contract</p>
+                                            <p className="font-mono text-sm text-gray-900 dark:text-gray-100 mt-1">{formatAddress(tba.tokenContract)}</p>
                                         </div>
                                         <div>
-                                            <p className="text-sm font-medium text-muted-foreground">Token ID</p>
-                                            <p className="text-sm">{tba.tokenId}</p>
+                                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Token ID</p>
+                                            <p className="text-sm text-gray-900 dark:text-gray-100 mt-1 font-mono">{tba.tokenId}</p>
                                         </div>
                                         <div>
-                                            <p className="text-sm font-medium text-muted-foreground">Salt</p>
-                                            <p className="text-sm">{tba.salt}</p>
+                                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Salt</p>
+                                            <p className="text-sm text-gray-900 dark:text-gray-100 mt-1">{tba.salt}</p>
                                         </div>
                                         <div>
-                                            <p className="text-sm font-medium text-muted-foreground">Balance</p>
-                                            <p className="text-sm flex items-center">
-                                                <Coins className="h-3 w-3 mr-1" />
-                                                {tba.balance} ETH
+                                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Balance</p>
+                                            <p className="text-sm flex items-center text-gray-900 dark:text-gray-100 mt-1">
+                                                <Coins className="h-3 w-3 mr-1 text-gray-500" />
+                                                <span className="font-mono">{tba.balance} ETH</span>
                                             </p>
                                         </div>
                                         <div>
-                                            <p className="text-sm font-medium text-muted-foreground">Valid Signer</p>
-                                            <p className="text-sm">
+                                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Valid Signer</p>
+                                            <p className="text-sm mt-1">
                                                 {tba.isValidSigner ? (
-                                                    <span className="text-green-600">✓ Yes</span>
+                                                    <span className="text-green-600 dark:text-green-400 font-mono">✓ Yes</span>
                                                 ) : (
-                                                    <span className="text-red-600">✗ No</span>
+                                                    <span className="text-red-600 dark:text-red-400 font-mono">✗ No</span>
                                                 )}
                                             </p>
                                         </div>

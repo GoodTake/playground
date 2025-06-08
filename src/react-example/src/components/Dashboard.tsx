@@ -13,8 +13,8 @@ export function Dashboard() {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                    <p>Initializing SDK...</p>
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-100 mx-auto mb-4"></div>
+                    <p className="text-gray-600 dark:text-gray-400 text-sm font-mono">Initializing SDK...</p>
                 </div>
             </div>
         )
@@ -23,9 +23,9 @@ export function Dashboard() {
     if (error) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
-                <div className="text-center text-destructive">
-                    <p className="font-medium">Failed to initialize SDK</p>
-                    <p className="text-sm mt-2">{error}</p>
+                <div className="text-center">
+                    <p className="font-medium text-red-600 dark:text-red-400">Failed to initialize SDK</p>
+                    <p className="text-sm mt-2 text-gray-600 dark:text-gray-400 font-mono">{error}</p>
                 </div>
             </div>
         )
@@ -35,37 +35,46 @@ export function Dashboard() {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
                 <div className="text-center">
-                    <p>Please connect your wallet to continue</p>
+                    <p className="text-gray-600 dark:text-gray-400 font-mono text-sm">Please connect your wallet to continue</p>
                 </div>
             </div>
         )
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8">
             {/* Tab Navigation */}
-            <div className="flex space-x-1 rounded-lg bg-muted p-1">
+            <div className="flex space-x-1 rounded border border-gray-200 bg-gray-50 p-1 dark:border-gray-800 dark:bg-gray-900">
                 <Button
                     variant={activeTab === 'wallet' ? 'default' : 'ghost'}
-                    size="sm"
+                    size="default"
                     onClick={() => setActiveTab('wallet')}
-                    className="flex-1"
+                    className={`flex-1 text-sm font-medium transition-all duration-200 ${activeTab === 'wallet'
+                        ? 'bg-gray-900 text-white shadow-sm dark:bg-white dark:text-gray-900 hover:bg-gray-900 hover:text-white dark:hover:bg-white dark:hover:text-gray-900'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-800'
+                        }`}
                 >
                     Wallet Info
                 </Button>
                 <Button
                     variant={activeTab === 'tba' ? 'default' : 'ghost'}
-                    size="sm"
+                    size="default"
                     onClick={() => setActiveTab('tba')}
-                    className="flex-1"
+                    className={`flex-1 text-sm font-medium transition-all duration-200 ${activeTab === 'tba'
+                        ? 'bg-gray-900 text-white shadow-sm dark:bg-white dark:text-gray-900 hover:bg-gray-900 hover:text-white dark:hover:bg-white dark:hover:text-gray-900'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-800'
+                        }`}
                 >
                     TBA Manager
                 </Button>
                 <Button
                     variant={activeTab === 'mint' ? 'default' : 'ghost'}
-                    size="sm"
+                    size="default"
                     onClick={() => setActiveTab('mint')}
-                    className="flex-1"
+                    className={`flex-1 text-sm font-medium transition-all duration-200 ${activeTab === 'mint'
+                        ? 'bg-gray-900 text-white shadow-sm dark:bg-white dark:text-gray-900 hover:bg-gray-900 hover:text-white dark:hover:bg-white dark:hover:text-gray-900'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-800'
+                        }`}
                 >
                     Mint NFT
                 </Button>

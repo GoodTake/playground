@@ -44,12 +44,12 @@ export function WalletInfo({ sdk, address, networkName }: WalletInfoProps) {
     }, [sdk, address])
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Wallet Overview */}
             <Card className="col-span-full">
                 <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle className="flex items-center space-x-2">
-                        <Wallet className="h-5 w-5" />
+                        <Wallet className="h-4 w-4 text-gray-500" />
                         <span>Wallet Overview</span>
                     </CardTitle>
                     <Button
@@ -59,26 +59,26 @@ export function WalletInfo({ sdk, address, networkName }: WalletInfoProps) {
                         disabled={loading}
                     >
                         {loading ? (
-                            <RefreshCw className="h-4 w-4 animate-spin" />
+                            <RefreshCw className="h-3 w-3 animate-spin" />
                         ) : (
-                            <RefreshCw className="h-4 w-4" />
+                            <RefreshCw className="h-3 w-3" />
                         )}
-                        Refresh
+                        <span className="ml-1 text-xs">Refresh</span>
                     </Button>
                 </CardHeader>
                 <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="space-y-2">
-                            <p className="text-sm font-medium text-muted-foreground">Address</p>
-                            <p className="font-mono text-sm break-all">{formatAddress(address, 10)}</p>
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Address</p>
+                            <p className="font-mono text-sm break-all text-gray-900 dark:text-gray-100">{formatAddress(address, 10)}</p>
                         </div>
                         <div className="space-y-2">
-                            <p className="text-sm font-medium text-muted-foreground">Network</p>
-                            <p className="text-sm">{networkName}</p>
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Network</p>
+                            <p className="text-sm text-gray-900 dark:text-gray-100">{networkName}</p>
                         </div>
                         <div className="space-y-2">
-                            <p className="text-sm font-medium text-muted-foreground">Balance</p>
-                            <p className="text-sm">{balance} ETH</p>
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Balance</p>
+                            <p className="text-sm font-mono text-gray-900 dark:text-gray-100">{balance} ETH</p>
                         </div>
                     </div>
                 </CardContent>
@@ -88,14 +88,14 @@ export function WalletInfo({ sdk, address, networkName }: WalletInfoProps) {
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center space-x-2">
-                        <Hash className="h-5 w-5" />
-                        <span>TBA Accounts</span>
+                        <Hash className="h-4 w-4 text-gray-500" />
+                        <span className="text-sm">TBA Accounts</span>
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className="text-center">
-                        <div className="text-2xl font-bold">{tbas.length}</div>
-                        <p className="text-sm text-muted-foreground">Active TBAs</p>
+                        <div className="text-xl font-semibold text-gray-900 dark:text-gray-100 font-mono">{tbas.length}</div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Active TBAs</p>
                     </div>
                 </CardContent>
             </Card>
@@ -104,14 +104,14 @@ export function WalletInfo({ sdk, address, networkName }: WalletInfoProps) {
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center space-x-2">
-                        <Coins className="h-5 w-5" />
-                        <span>NFTs</span>
+                        <Coins className="h-4 w-4 text-gray-500" />
+                        <span className="text-sm">NFTs</span>
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className="text-center">
-                        <div className="text-2xl font-bold">{nfts.length}</div>
-                        <p className="text-sm text-muted-foreground">Owned NFTs</p>
+                        <div className="text-xl font-semibold text-gray-900 dark:text-gray-100 font-mono">{nfts.length}</div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Owned NFTs</p>
                     </div>
                 </CardContent>
             </Card>
@@ -120,14 +120,14 @@ export function WalletInfo({ sdk, address, networkName }: WalletInfoProps) {
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center space-x-2">
-                        <Coins className="h-5 w-5" />
-                        <span>Tokens</span>
+                        <Coins className="h-4 w-4 text-gray-500" />
+                        <span className="text-sm">Tokens</span>
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className="text-center">
-                        <div className="text-2xl font-bold">0</div>
-                        <p className="text-sm text-muted-foreground">ERC-20 Tokens</p>
+                        <div className="text-xl font-semibold text-gray-900 dark:text-gray-100 font-mono">0</div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">ERC-20 Tokens</p>
                     </div>
                 </CardContent>
             </Card>

@@ -6,17 +6,17 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const buttonVariants = {
-    default: 'bg-primary text-primary-foreground hover:bg-primary/90',
-    outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
-    secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-    ghost: 'hover:bg-accent hover:text-accent-foreground',
-    destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+    default: 'bg-gray-900 text-white hover:bg-gray-800 active:bg-gray-950 border border-transparent',
+    outline: 'border border-gray-300 bg-transparent text-gray-900 hover:bg-gray-50 active:bg-gray-100 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900',
+    secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200 active:bg-gray-300 border border-transparent dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700',
+    ghost: 'bg-transparent text-gray-700 hover:bg-gray-100 active:bg-gray-200 border border-transparent dark:text-gray-300 dark:hover:bg-gray-800',
+    destructive: 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 border border-transparent'
 }
 
 const buttonSizes = {
-    default: 'h-10 px-4 py-2',
-    sm: 'h-9 rounded-md px-3',
-    lg: 'h-11 rounded-md px-8'
+    default: 'h-9 px-4 py-2 text-sm',
+    sm: 'h-8 px-3 py-1.5 text-xs',
+    lg: 'h-10 px-6 py-2.5 text-base'
 }
 
 export function Button({
@@ -26,7 +26,7 @@ export function Button({
     children,
     ...props
 }: ButtonProps) {
-    const baseClasses = 'inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50'
+    const baseClasses = 'inline-flex items-center justify-center rounded font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40 select-none'
     const variantClasses = buttonVariants[variant]
     const sizeClasses = buttonSizes[size]
 

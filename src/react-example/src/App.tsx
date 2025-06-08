@@ -8,9 +8,9 @@ function App() {
     const { isConnected } = useAccount()
 
     return (
-        <div className="min-h-screen bg-background">
+        <div className="dark min-h-screen bg-gray-950 text-gray-100">
             <Header />
-            <main className="container mx-auto px-4 py-8">
+            <main className="container mx-auto px-6 py-8">
                 {isConnected ? <Dashboard /> : <WalletConnection />}
             </main>
         </div>
