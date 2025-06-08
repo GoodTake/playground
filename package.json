@@ -10,14 +10,19 @@
     "create-tba": "ts-node --transpile-only src/examples/create-tba.ts",
     "check-tba": "ts-node --transpile-only src/examples/check-tba.ts",
     "upload-video": "ts-node --transpile-only src/examples/upload-video.ts",
-    "full-flow": "ts-node --transpile-only src/examples/full-flow.ts"
+    "full-flow": "ts-node --transpile-only src/examples/full-flow.ts",
+    "react-dev": "cd src/react-example && npm run dev",
+    "react-build": "cd src/react-example && npm run build",
+    "react-install": "cd src/react-example && npm install"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@gotake/gotake-sdk": "^0.0.8",
+    "buffer": "^6.0.3",
     "dotenv": "^16.3.1",
-    "ethers": "^5.7.2"
+    "ethers": "^5.7.2",
+    "process": "^0.11.10"
   },
   "devDependencies": {
     "@types/node": "^20.8.0",
