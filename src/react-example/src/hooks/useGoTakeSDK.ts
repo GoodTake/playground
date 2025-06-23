@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { GoTakeSDK } from '@gotake/gotake-sdk'
 import { useAccount, useWalletClient } from 'wagmi'
-import { providers } from 'ethers'
 import { walletClientToSigner } from './walletClientToSigner'
 
 export function useGoTakeSDK() {

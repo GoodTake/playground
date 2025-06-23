@@ -18,7 +18,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@gotake/gotake-sdk": "^0.0.8",
+    "@gotake/gotake-sdk": "^0.0.11",
     "buffer": "^6.0.3",
     "dotenv": "^16.3.1",
     "ethers": "^5.7.2",

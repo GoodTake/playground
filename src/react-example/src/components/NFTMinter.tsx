@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { GoTakeSDK } from '@gotake/gotake-sdk'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 import { Button } from './ui/Button'
@@ -78,7 +78,7 @@ export function NFTMinter({ sdk, address }: NFTMinterProps) {
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    {/* Form */}
+                    {/* Form Fields */}
                     <div className="space-y-6">
                         <div>
                             <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Title *</label>

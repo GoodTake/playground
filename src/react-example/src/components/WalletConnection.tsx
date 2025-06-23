@@ -1,4 +1,4 @@
-import React from 'react'
+
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 

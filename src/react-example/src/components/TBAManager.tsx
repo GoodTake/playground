@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { GoTakeSDK } from '@gotake/gotake-sdk'
 import { ethers } from 'ethers'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
@@ -31,7 +31,7 @@ export function TBAManager({ sdk }: TBAManagerProps) {
         setLoading(true)
         try {
             // Check if user has any existing TBA
-            const { tbaAddress, isNew } = await sdk.checkAndCreateTBA()
+            const { tbaAddress } = await sdk.checkAndCreateTBA()
 
             if (tbaAddress) {
                 const balance = await sdk.provider.getBalance(tbaAddress)
@@ -95,7 +95,6 @@ export function TBAManager({ sdk }: TBAManagerProps) {
 
             // Get TBA info
             const balance = await sdk.provider.getBalance(createResult.tbaAddress)
-            const tbaInfo = await sdk.account.getTBAInfo(createResult.tbaAddress)
             const isValidSigner = await sdk.account.isValidSigner(createResult.tbaAddress, userAddress)
 
             const tbaData: TBAData = {

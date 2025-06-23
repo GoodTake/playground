@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { GoTakeSDK } from '@gotake/gotake-sdk'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 import { Button } from './ui/Button'
-import { formatAddress, formatBalance } from '../lib/utils'
+import { formatAddress } from '../lib/utils'
 import { Wallet, Coins, Hash, RefreshCw } from 'lucide-react'
 
 interface WalletInfoProps {

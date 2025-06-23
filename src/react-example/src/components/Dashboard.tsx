@@ -1,13 +1,16 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useGoTakeSDK } from '../hooks/useGoTakeSDK'
+import { Navigation } from './Navigation'
 import { WalletInfo } from './WalletInfo'
 import { TBAManager } from './TBAManager'
 import { NFTMinter } from './NFTMinter'
-import { Button } from './ui/Button'
+import { VideoPurchaser } from './VideoPurchaser'
+import { PermissionManager } from './PermissionManager'
+import { ContentManager } from './ContentManager'
 
 export function Dashboard() {
     const { sdk, loading, error, isReady, address, networkName } = useGoTakeSDK()
-    const [activeTab, setActiveTab] = useState<'wallet' | 'tba' | 'mint'>('wallet')
+    const [activeItem, setActiveItem] = useState<string>('wallet')
 
     if (loading) {
         return (
@@ -41,59 +44,39 @@ export function Dashboard() {
         )
     }
 
-    return (
-        <div className="space-y-8">
-            {/* Tab Navigation */}
-            <div className="flex space-x-1 rounded border border-gray-200 bg-gray-50 p-1 dark:border-gray-800 dark:bg-gray-900">
-                <Button
-                    variant={activeTab === 'wallet' ? 'default' : 'ghost'}
-                    size="default"
-                    onClick={() => setActiveTab('wallet')}
-                    className={`flex-1 text-sm font-medium transition-all duration-200 ${activeTab === 'wallet'
-                        ? 'bg-gray-900 text-white shadow-sm dark:bg-white dark:text-gray-900 hover:bg-gray-900 hover:text-white dark:hover:bg-white dark:hover:text-gray-900'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-800'
-                        }`}
-                >
-                    Wallet Info
-                </Button>
-                <Button
-                    variant={activeTab === 'tba' ? 'default' : 'ghost'}
-                    size="default"
-                    onClick={() => setActiveTab('tba')}
-                    className={`flex-1 text-sm font-medium transition-all duration-200 ${activeTab === 'tba'
-                        ? 'bg-gray-900 text-white shadow-sm dark:bg-white dark:text-gray-900 hover:bg-gray-900 hover:text-white dark:hover:bg-white dark:hover:text-gray-900'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-800'
-                        }`}
-                >
-                    TBA Manager
-                </Button>
-                <Button
-                    variant={activeTab === 'mint' ? 'default' : 'ghost'}
-                    size="default"
-                    onClick={() => setActiveTab('mint')}
-                    className={`flex-1 text-sm font-medium transition-all duration-200 ${activeTab === 'mint'
-                        ? 'bg-gray-900 text-white shadow-sm dark:bg-white dark:text-gray-900 hover:bg-gray-900 hover:text-white dark:hover:bg-white dark:hover:text-gray-900'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-800'
-                        }`}
-                >
-                    Mint NFT
-                </Button>
-            </div>
+    const renderContent = () => {
+        switch (activeItem) {
+            case 'wallet':
+                return <WalletInfo sdk={sdk!} address={address!} networkName={networkName!} />
+            case 'mint':
+                return <NFTMinter sdk={sdk!} address={address!} />
+            case 'tba':
+                return <TBAManager sdk={sdk!} />
+            case 'video-purchase':
+                return <VideoPurchaser sdk={sdk!} address={address || ''} />
+            case 'permissions':
+                return <PermissionManager sdk={sdk!} />
+            case 'content-manager':
+                return <ContentManager sdk={sdk!} />
+            default:
+                return <WalletInfo sdk={sdk!} address={address!} networkName={networkName!} />
+        }
+    }
 
-            {/* Tab Content */}
-            {activeTab === 'wallet' && (
-                <WalletInfo
-                    sdk={sdk!}
-                    address={address!}
-                    networkName={networkName}
-                />
-            )}
-            {activeTab === 'tba' && (
-                <TBAManager sdk={sdk!} />
-            )}
-            {activeTab === 'mint' && (
-                <NFTMinter sdk={sdk!} address={address!} />
-            )}
+    return (
+        <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
+            {/* Left Navigation */}
+            <Navigation
+                activeItem={activeItem}
+                onItemChange={setActiveItem}
+            />
+
+            {/* Main Content Area */}
+            <div className="flex-1">
+                <div className="p-8">
+                    {renderContent()}
+                </div>
+            </div>
         </div>
     )
 } 

@@ -14,6 +14,13 @@ export default defineConfig({
         global: 'globalThis',
     },
     server: {
-        port: 3000,
+        port: 3003,
     },
+    build: {
+        rollupOptions: {
+            external: (id) => {
+                return id.includes('@safe-global') || id.includes('@safe-globalThis')
+            }
+        }
+    }
 }) 
