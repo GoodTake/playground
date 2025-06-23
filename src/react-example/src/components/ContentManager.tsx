@@ -2,16 +2,11 @@ import { useState } from 'react'
 import { GoTakeSDK } from '@gotake/gotake-sdk'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 import { Button } from './ui/Button'
-import { Plus, Search, Edit, Trash2, Check, X, Loader2 } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Check, X, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
 import { ethers } from 'ethers'
 
 interface ContentManagerProps {
     sdk: GoTakeSDK
-}
-
-interface TokenPrice {
-    address: string
-    price: string
 }
 
 interface ContentInfo {
@@ -30,6 +25,97 @@ interface OperationStatus {
     txHash?: string
 }
 
+interface ErrorDisplayProps {
+    error: string
+    onClose: () => void
+}
+
+function ErrorDisplay({ error, onClose }: ErrorDisplayProps) {
+    const [showFullError, setShowFullError] = useState(false)
+
+    // Intelligent error truncation
+    const truncateError = (errorMessage: string, maxLength: number = 150): {
+        truncated: string,
+        needsTruncation: boolean,
+        summary: string
+    } => {
+        if (errorMessage.length <= maxLength) {
+            return {
+                truncated: errorMessage,
+                needsTruncation: false,
+                summary: errorMessage
+            }
+        }
+
+        // Extract key information for summary
+        let summary = errorMessage
+
+        // Handle common error patterns
+        if (errorMessage.includes('user rejected transaction')) {
+            summary = 'Transaction was rejected by user'
+        } else if (errorMessage.includes('UNPREDICTABLE_GAS_LIMIT')) {
+            summary = 'Gas estimation failed - please check parameters'
+        } else if (errorMessage.includes('ACTION_REJECTED')) {
+            summary = 'Transaction was rejected'
+        } else if (errorMessage.includes('insufficient funds')) {
+            summary = 'Insufficient funds for transaction'
+        } else {
+            // Generic truncation
+            summary = errorMessage.substring(0, maxLength) + '...'
+        }
+
+        return {
+            truncated: summary,
+            needsTruncation: true,
+            summary: summary
+        }
+    }
+
+    const { truncated, needsTruncation, summary } = truncateError(error)
+
+    return (
+        <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-md p-3 max-w-full">
+            <div className="flex items-start justify-between">
+                <div className="flex items-start min-w-0 flex-1">
+                    <X className="h-5 w-5 text-red-500 mr-2 mt-0.5 flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                        <div className="text-red-700 dark:text-red-300 break-words">
+                            {showFullError ? (
+                                <div className="max-h-32 overflow-y-auto text-sm font-mono bg-red-100 dark:bg-red-900 p-2 rounded">
+                                    {error}
+                                </div>
+                            ) : (
+                                <span>{summary}</span>
+                            )}
+                        </div>
+                        {needsTruncation && (
+                            <button
+                                onClick={() => setShowFullError(!showFullError)}
+                                className="mt-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 text-sm flex items-center"
+                            >
+                                {showFullError ? (
+                                    <>
+                                        <ChevronUp className="h-4 w-4 mr-1" />
+                                        Hide Details
+                                    </>
+                                ) : (
+                                    <>
+                                        <ChevronDown className="h-4 w-4 mr-1" />
+                                        Show Details
+                                    </>
+                                )}
+                            </button>
+                        )}
+                    </div>
+                </div>
+                <button onClick={onClose} className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 flex-shrink-0 ml-2">
+                    <X className="h-4 w-4" />
+                </button>
+            </div>
+        </div>
+    )
+}
+
 export function ContentManager({ sdk }: ContentManagerProps) {
     // Create content state
     const [createForm, setCreateForm] = useState({
@@ -39,7 +125,6 @@ export function ContentManager({ sdk }: ContentManagerProps) {
         durationHours: '',
         isActive: true
     })
-    const [tokenPrices, setTokenPrices] = useState<TokenPrice[]>([])
     const [createStatus, setCreateStatus] = useState<OperationStatus>({
         loading: false,
         success: false,
@@ -68,19 +153,16 @@ export function ContentManager({ sdk }: ContentManagerProps) {
         error: null
     })
 
-    // Token price management functions
-    const addTokenPrice = () => {
-        setTokenPrices([...tokenPrices, { address: '', price: '' }])
-    }
-
-    const removeTokenPrice = (index: number) => {
-        setTokenPrices(tokenPrices.filter((_, i) => i !== index))
-    }
-
-    const updateTokenPrice = (index: number, field: 'address' | 'price', value: string) => {
-        const updated = [...tokenPrices]
-        updated[index][field] = value
-        setTokenPrices(updated)
+    // Helper function to format error messages for better UX
+    const formatErrorMessage = (error: string): string => {
+        // Keep original functionality for basic formatting
+        if (error.includes('UNPREDICTABLE_GAS_LIMIT')) {
+            return 'Transaction may fail due to gas estimation issues. Please check your parameters and try again.'
+        }
+        if (error.includes('cannot estimate gas')) {
+            return 'Unable to estimate gas for this transaction. Please verify all parameters are correct.'
+        }
+        return error
     }
 
     // Create content function
@@ -88,6 +170,9 @@ export function ContentManager({ sdk }: ContentManagerProps) {
         setCreateStatus({ loading: true, success: false, error: null })
 
         try {
+            // Initialize SDK before creating content
+            await sdk.videoPayment.init()
+
             // Validate inputs
             const contentId = parseInt(createForm.contentId)
             const viewCount = parseInt(createForm.viewCount)
@@ -97,8 +182,13 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                 throw new Error('Please provide valid numeric values')
             }
 
-            if (viewCount <= 0 || durationHours <= 0) {
-                throw new Error('View count and duration must be greater than 0')
+            // Updated validation: allow viewCount = 0 for unlimited views
+            if (viewCount < 0) {
+                throw new Error('View count cannot be negative (0 = unlimited views)')
+            }
+
+            if (durationHours <= 0) {
+                throw new Error('Duration must be greater than 0')
             }
 
             // Validate native price
@@ -111,33 +201,13 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                 throw new Error('Invalid native price format')
             }
 
-            // Validate token prices
-            const validTokenPrices: Record<string, string> = {}
-            for (const token of tokenPrices) {
-                if (token.address && token.price) {
-                    if (!ethers.utils.isAddress(token.address)) {
-                        throw new Error(`Invalid token address: ${token.address}`)
-                    }
-                    try {
-                        const tokenPriceWei = ethers.utils.parseEther(token.price)
-                        if (tokenPriceWei.lte(0)) {
-                            throw new Error(`Token price must be greater than 0: ${token.address}`)
-                        }
-                        validTokenPrices[token.address] = token.price
-                    } catch {
-                        throw new Error(`Invalid token price format: ${token.address}`)
-                    }
-                }
-            }
-
-            // Execute content creation
+            // Execute content creation - simplified to match reference script
             const txHash = await sdk.videoPayment.setContentConfig({
                 contentId,
                 nativePrice: createForm.nativePrice,
                 defaultViewCount: viewCount,
                 viewDuration: durationHours * 3600, // Convert hours to seconds
-                isActive: createForm.isActive,
-                ...(Object.keys(validTokenPrices).length > 0 && { tokenPrices: validTokenPrices })
+                isActive: createForm.isActive
             })
 
             setCreateStatus({
@@ -155,13 +225,13 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                 durationHours: '',
                 isActive: true
             })
-            setTokenPrices([])
 
         } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Failed to create content'
             setCreateStatus({
                 loading: false,
                 success: false,
-                error: error instanceof Error ? error.message : 'Failed to create content',
+                error: formatErrorMessage(errorMessage),
                 txHash: undefined // Clear any previous txHash
             })
         }
@@ -196,10 +266,11 @@ export function ContentManager({ sdk }: ContentManagerProps) {
             setQueryStatus({ loading: false, success: true, error: null })
 
         } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Failed to query content'
             setQueryStatus({
                 loading: false,
                 success: false,
-                error: error instanceof Error ? error.message : 'Failed to query content'
+                error: formatErrorMessage(errorMessage)
             })
             setContentInfo(null)
         }
@@ -270,10 +341,11 @@ export function ContentManager({ sdk }: ContentManagerProps) {
             })
 
         } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Failed to update price'
             setUpdateStatus({
                 loading: false,
                 success: false,
-                error: error instanceof Error ? error.message : 'Failed to update price',
+                error: formatErrorMessage(errorMessage),
                 txHash: undefined // Clear any previous txHash
             })
         }
@@ -336,6 +408,9 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                                 value={createForm.viewCount}
                                 onChange={(e) => setCreateForm({ ...createForm, viewCount: e.target.value })}
                             />
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                Enter 0 for unlimited views, or any positive number for limited views
+                            </p>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -365,48 +440,6 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                         </label>
                     </div>
 
-                    {/* Token Prices */}
-                    <div>
-                        <div className="flex items-center justify-between mb-2">
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Token Prices
-                            </label>
-                            <Button
-                                type="button"
-                                onClick={addTokenPrice}
-                                className="text-sm px-3 py-1"
-                            >
-                                <Plus className="h-4 w-4 mr-1" />
-                                Add Token
-                            </Button>
-                        </div>
-                        {tokenPrices.map((token, index) => (
-                            <div key={index} className="flex gap-2 mb-2">
-                                <input
-                                    type="text"
-                                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    placeholder="Token Address"
-                                    value={token.address}
-                                    onChange={(e) => updateTokenPrice(index, 'address', e.target.value)}
-                                />
-                                <input
-                                    type="text"
-                                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    placeholder="Price"
-                                    value={token.price}
-                                    onChange={(e) => updateTokenPrice(index, 'price', e.target.value)}
-                                />
-                                <Button
-                                    type="button"
-                                    onClick={() => removeTokenPrice(index)}
-                                    className="px-2 py-2 bg-red-600 hover:bg-red-700"
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        ))}
-                    </div>
-
                     <Button
                         onClick={createContent}
                         disabled={createStatus.loading}
@@ -422,17 +455,12 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                         )}
                     </Button>
 
-                    {/* Create Status */}
+                    {/* Create Status - Enhanced error display */}
                     {createStatus.error && !createStatus.success && (
-                        <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-md p-3 flex items-start justify-between">
-                            <div className="flex items-start">
-                                <X className="h-5 w-5 text-red-500 mr-2 mt-0.5" />
-                                <span className="text-red-700 dark:text-red-300">{createStatus.error}</span>
-                            </div>
-                            <button onClick={resetCreateStatus} className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300">
-                                <X className="h-4 w-4" />
-                            </button>
-                        </div>
+                        <ErrorDisplay
+                            error={createStatus.error}
+                            onClose={resetCreateStatus}
+                        />
                     )}
                     {createStatus.success && !createStatus.error && (
                         <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md p-3 flex items-start justify-between">
@@ -489,17 +517,12 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                         </Button>
                     </div>
 
-                    {/* Query Status */}
+                    {/* Query Status - Enhanced error display */}
                     {queryStatus.error && !queryStatus.success && (
-                        <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-md p-3 flex items-start justify-between">
-                            <div className="flex items-start">
-                                <X className="h-5 w-5 text-red-500 mr-2 mt-0.5" />
-                                <span className="text-red-700 dark:text-red-300">{queryStatus.error}</span>
-                            </div>
-                            <button onClick={resetQueryStatus} className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300">
-                                <X className="h-4 w-4" />
-                            </button>
-                        </div>
+                        <ErrorDisplay
+                            error={queryStatus.error}
+                            onClose={resetQueryStatus}
+                        />
                     )}
 
                     {/* Content Information Display */}
@@ -519,7 +542,9 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                                 </div>
                                 <div>
                                     <span className="text-sm text-gray-600 dark:text-gray-400">View Count:</span>
-                                    <p className="font-medium text-gray-900 dark:text-gray-100">{contentInfo.defaultViewCount}</p>
+                                    <p className="font-medium text-gray-900 dark:text-gray-100">
+                                        {contentInfo.defaultViewCount === 0 ? 'Unlimited' : contentInfo.defaultViewCount}
+                                    </p>
                                 </div>
                                 <div>
                                     <span className="text-sm text-gray-600 dark:text-gray-400">Duration:</span>
@@ -640,17 +665,12 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                         )}
                     </Button>
 
-                    {/* Update Status */}
+                    {/* Update Status - Enhanced error display */}
                     {updateStatus.error && !updateStatus.success && (
-                        <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-md p-3 flex items-start justify-between">
-                            <div className="flex items-start">
-                                <X className="h-5 w-5 text-red-500 mr-2 mt-0.5" />
-                                <span className="text-red-700 dark:text-red-300">{updateStatus.error}</span>
-                            </div>
-                            <button onClick={resetUpdateStatus} className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300">
-                                <X className="h-4 w-4" />
-                            </button>
-                        </div>
+                        <ErrorDisplay
+                            error={updateStatus.error}
+                            onClose={resetUpdateStatus}
+                        />
                     )}
                     {updateStatus.success && !updateStatus.error && (
                         <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md p-3 flex items-start justify-between">
