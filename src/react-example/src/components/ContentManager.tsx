@@ -211,20 +211,24 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                 throw new Error('Duration must be greater than 0')
             }
 
-            // Validate native price
-            try {
-                const priceWei = ethers.utils.parseEther(createForm.nativePrice)
-                if (priceWei.lte(0)) {
-                    throw new Error('Native price must be greater than 0')
+            // Validate native price (allow 0 for ERC20-only content)
+            let nativePriceValue = '0'
+            if (createForm.nativePrice && createForm.nativePrice.trim() !== '') {
+                try {
+                    const priceWei = ethers.utils.parseEther(createForm.nativePrice)
+                    if (priceWei.lt(0)) {
+                        throw new Error('Native price cannot be negative')
+                    }
+                    nativePriceValue = createForm.nativePrice
+                } catch {
+                    throw new Error('Invalid native price format')
                 }
-            } catch {
-                throw new Error('Invalid native price format')
             }
 
             // Step 1: Execute content configuration
             const configTxHash = await sdk.videoPayment.setContentConfig({
                 contentId,
-                nativePrice: createForm.nativePrice,
+                nativePrice: nativePriceValue,
                 defaultViewCount: viewCount,
                 viewDuration: durationHours * 3600, // Convert hours to seconds
                 isActive: createForm.isActive
@@ -240,7 +244,8 @@ export function ContentManager({ sdk }: ContentManagerProps) {
             // Step 2: Mint ContentNFT
             const userAddress = await sdk.getAddress()
             const contentTitle = `Content #${contentId}`
-            const contentDescription = `Content created with ${createForm.nativePrice} ETH price, ${viewCount === 0 ? 'unlimited' : viewCount} views, ${durationHours}h duration`
+            const priceDescription = nativePriceValue === '0' ? 'ERC20-only payment' : `${nativePriceValue} ETH price`
+            const contentDescription = `Content created with ${priceDescription}, ${viewCount === 0 ? 'unlimited' : viewCount} views, ${durationHours}h duration`
 
             const mintResult = await sdk.contentNFT.mint(userAddress, {
                 title: contentTitle,
@@ -459,10 +464,13 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                             <input
                                 type="text"
                                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="0.001"
+                                placeholder="0.001 or leave empty for ERC20-only"
                                 value={createForm.nativePrice}
                                 onChange={(e) => setCreateForm({ ...createForm, nativePrice: e.target.value })}
                             />
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                Leave empty or enter 0 to use ERC20 tokens only
+                            </p>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

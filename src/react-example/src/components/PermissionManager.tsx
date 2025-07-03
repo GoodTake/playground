@@ -281,57 +281,57 @@ export function PermissionManager({ sdk }: PermissionManagerProps) {
     // Helper function to format permission results table
     const PermissionTable = ({ results }: { results: PermissionResult[] }) => (
         <div className="overflow-x-auto">
-            <table className="w-full border-collapse border border-gray-300">
+            <table className="w-full border-collapse border border-gray-300 dark:border-gray-700">
                 <thead>
-                    <tr className="bg-gray-50">
-                        <th className="border border-gray-300 px-4 py-2 text-left">Content ID</th>
+                    <tr className="bg-gray-50 dark:bg-gray-800">
+                        <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-left text-gray-900 dark:text-gray-100">Content ID</th>
                         {results[0]?.userAddress && (
-                            <th className="border border-gray-300 px-4 py-2 text-left">User</th>
+                            <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-left text-gray-900 dark:text-gray-100">User</th>
                         )}
-                        <th className="border border-gray-300 px-4 py-2 text-left">Permission</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Views Left</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Purchase Time</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Status</th>
+                        <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-left text-gray-900 dark:text-gray-100">Permission</th>
+                        <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-left text-gray-900 dark:text-gray-100">Views Left</th>
+                        <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-left text-gray-900 dark:text-gray-100">Purchase Time</th>
+                        <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-left text-gray-900 dark:text-gray-100">Status</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody className="bg-white dark:bg-gray-950">
                     {results.map((result) => (
-                        <tr key={`${result.contentId}-${result.userAddress || 'self'}`}>
-                            <td className="border border-gray-300 px-4 py-2">{result.contentId}</td>
+                        <tr key={`${result.contentId}-${result.userAddress || 'self'}`} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                            <td className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-gray-900 dark:text-gray-100">{result.contentId}</td>
                             {results[0]?.userAddress && (
-                                <td className="border border-gray-300 px-4 py-2 text-sm">
+                                <td className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
                                     {result.userAddress?.slice(0, 6)}...{result.userAddress?.slice(-4)}
                                 </td>
                             )}
-                            <td className="border border-gray-300 px-4 py-2">
+                            <td className="border border-gray-300 dark:border-gray-700 px-4 py-2">
                                 {result.hasPermission ? (
-                                    <span className="flex items-center text-green-600">
+                                    <span className="flex items-center text-green-600 dark:text-green-400">
                                         <Check className="h-4 w-4 mr-1" />
                                         Granted
                                     </span>
                                 ) : (
-                                    <span className="flex items-center text-red-600">
+                                    <span className="flex items-center text-red-600 dark:text-red-400">
                                         <X className="h-4 w-4 mr-1" />
                                         Denied
                                     </span>
                                 )}
                             </td>
-                            <td className="border border-gray-300 px-4 py-2">
+                            <td className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-gray-900 dark:text-gray-100">
                                 {result.hasPermission ? result.remainingViews : '-'}
                             </td>
-                            <td className="border border-gray-300 px-4 py-2 text-sm">
+                            <td className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
                                 {result.purchaseTime ? result.purchaseTime.toLocaleString() : '-'}
                             </td>
-                            <td className="border border-gray-300 px-4 py-2">
+                            <td className="border border-gray-300 dark:border-gray-700 px-4 py-2">
                                 {!result.hasPermission ? (
-                                    <span className="text-gray-500">No Access</span>
+                                    <span className="text-gray-500 dark:text-gray-400">No Access</span>
                                 ) : result.isExpired ? (
-                                    <span className="flex items-center text-red-600">
+                                    <span className="flex items-center text-red-600 dark:text-red-400">
                                         <Clock className="h-4 w-4 mr-1" />
                                         Expired
                                     </span>
                                 ) : (
-                                    <span className="flex items-center text-green-600">
+                                    <span className="flex items-center text-green-600 dark:text-green-400">
                                         <Eye className="h-4 w-4 mr-1" />
                                         Active
                                     </span>
