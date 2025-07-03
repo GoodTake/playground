@@ -1,5 +1,5 @@
 import React from 'react'
-import { Wallet, Coins, Hash, Video, Shield, Settings, ChevronRight } from 'lucide-react'
+import { Wallet, Hash, Video, Shield, Settings, ChevronRight } from 'lucide-react'
 
 interface NavigationItem {
     id: string
@@ -31,19 +31,13 @@ const navigationGroups: NavigationGroup[] = [
         ]
     },
     {
-        title: 'NFT & TBA',
+        title: 'Account Management',
         items: [
             {
-                id: 'mint',
-                label: 'Mint IPNFT',
-                icon: Coins,
-                description: 'Create new Intellectual Property NFT'
-            },
-            {
                 id: 'tba',
-                label: 'TBA Manager',
+                label: 'Account Manager',
                 icon: Hash,
-                description: 'Manage Token Bound Accounts'
+                description: 'Create accounts and manage funds'
             }
         ]
     },

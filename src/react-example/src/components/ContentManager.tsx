@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { GoTakeSDK } from '@gotake/gotake-sdk'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 import { Button } from './ui/Button'
-import { Plus, Search, Edit, Trash2, Check, X, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Search, Edit, Check, X, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
 import { ethers } from 'ethers'
+import { batchFormatTokenAmountsWithSymbol, parseTokenAmount } from '../lib/token-utils'
 
 interface ContentManagerProps {
     sdk: GoTakeSDK
@@ -23,6 +24,22 @@ interface OperationStatus {
     success: boolean
     error: string | null
     txHash?: string
+}
+
+interface CreateContentStatus {
+    configStep: {
+        loading: boolean
+        success: boolean
+        error: string | null
+        txHash?: string
+    }
+    nftStep: {
+        loading: boolean
+        success: boolean
+        error: string | null
+        txHash?: string
+        tokenId?: string
+    }
 }
 
 interface ErrorDisplayProps {
@@ -71,7 +88,7 @@ function ErrorDisplay({ error, onClose }: ErrorDisplayProps) {
         }
     }
 
-    const { truncated, needsTruncation, summary } = truncateError(error)
+    const { needsTruncation, summary } = truncateError(error)
 
     return (
         <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-md p-3 max-w-full">
@@ -125,10 +142,9 @@ export function ContentManager({ sdk }: ContentManagerProps) {
         durationHours: '',
         isActive: true
     })
-    const [createStatus, setCreateStatus] = useState<OperationStatus>({
-        loading: false,
-        success: false,
-        error: null
+    const [createStatus, setCreateStatus] = useState<CreateContentStatus>({
+        configStep: { loading: false, success: false, error: null },
+        nftStep: { loading: false, success: false, error: null }
     })
 
     // Query content state
@@ -165,9 +181,13 @@ export function ContentManager({ sdk }: ContentManagerProps) {
         return error
     }
 
-    // Create content function
+    // Create content function with ContentNFT minting
     const createContent = async () => {
-        setCreateStatus({ loading: true, success: false, error: null })
+        // Reset status
+        setCreateStatus({
+            configStep: { loading: true, success: false, error: null },
+            nftStep: { loading: false, success: false, error: null }
+        })
 
         try {
             // Initialize SDK before creating content
@@ -201,8 +221,8 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                 throw new Error('Invalid native price format')
             }
 
-            // Execute content creation - simplified to match reference script
-            const txHash = await sdk.videoPayment.setContentConfig({
+            // Step 1: Execute content configuration
+            const configTxHash = await sdk.videoPayment.setContentConfig({
                 contentId,
                 nativePrice: createForm.nativePrice,
                 defaultViewCount: viewCount,
@@ -210,14 +230,40 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                 isActive: createForm.isActive
             })
 
-            setCreateStatus({
-                loading: false,
-                success: true,
-                error: null,
-                txHash
+            // Update config step success
+            setCreateStatus(prev => ({
+                ...prev,
+                configStep: { loading: false, success: true, error: null, txHash: configTxHash },
+                nftStep: { loading: true, success: false, error: null }
+            }))
+
+            // Step 2: Mint ContentNFT
+            const userAddress = await sdk.getAddress()
+            const contentTitle = `Content #${contentId}`
+            const contentDescription = `Content created with ${createForm.nativePrice} ETH price, ${viewCount === 0 ? 'unlimited' : viewCount} views, ${durationHours}h duration`
+
+            const mintResult = await sdk.contentNFT.mint(userAddress, {
+                title: contentTitle,
+                description: contentDescription,
+                tags: ['content', 'video', 'gotake'],
+                creator: userAddress
             })
 
-            // Reset form
+            const mintReceipt = await mintResult.tx.wait()
+
+            // Update NFT step success
+            setCreateStatus(prev => ({
+                ...prev,
+                nftStep: {
+                    loading: false,
+                    success: true,
+                    error: null,
+                    txHash: mintReceipt.transactionHash,
+                    tokenId: mintResult.tokenId.toString()
+                }
+            }))
+
+            // Reset form after complete success
             setCreateForm({
                 contentId: '',
                 nativePrice: '',
@@ -228,12 +274,22 @@ export function ContentManager({ sdk }: ContentManagerProps) {
 
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to create content'
-            setCreateStatus({
-                loading: false,
-                success: false,
-                error: formatErrorMessage(errorMessage),
-                txHash: undefined // Clear any previous txHash
-            })
+
+            // Determine which step failed
+            if (createStatus.configStep.success) {
+                // Config succeeded, NFT mint failed
+                setCreateStatus(prev => ({
+                    ...prev,
+                    nftStep: { loading: false, success: false, error: formatErrorMessage(errorMessage) }
+                }))
+            } else {
+                // Config step failed
+                setCreateStatus(prev => ({
+                    ...prev,
+                    configStep: { loading: false, success: false, error: formatErrorMessage(errorMessage) },
+                    nftStep: { loading: false, success: false, error: null }
+                }))
+            }
         }
     }
 
@@ -249,17 +305,19 @@ export function ContentManager({ sdk }: ContentManagerProps) {
 
             const rawInfo = await sdk.videoPayment.getContentInfo(contentId)
 
+            // Format token prices with correct decimals and symbols
+            const formattedTokenPrices = await batchFormatTokenAmountsWithSymbol(
+                rawInfo.tokenPrices || {},
+                sdk.provider
+            )
+
             const info: ContentInfo = {
                 contentId,
                 isActive: rawInfo.isActive,
                 defaultViewCount: rawInfo.defaultViewCount,
                 viewDuration: rawInfo.viewDuration,
                 nativePrice: ethers.utils.formatEther(rawInfo.nativePrice),
-                tokenPrices: Object.fromEntries(
-                    Object.entries(rawInfo.tokenPrices || {}).map(([addr, price]) =>
-                        [addr, ethers.utils.formatEther(price)]
-                    )
-                )
+                tokenPrices: formattedTokenPrices
             }
 
             setContentInfo(info)
@@ -312,9 +370,15 @@ export function ContentManager({ sdk }: ContentManagerProps) {
             if (updateForm.paymentType === 'ERC20') {
                 // Use final processed token address for ERC20 updates
                 const finalTokenAddress = updateForm.tokenAddress || ethers.constants.AddressZero
+                // Parse with correct decimals for ERC20 token
+                const priceAmount = await parseTokenAmount(
+                    updateForm.newPrice,
+                    finalTokenAddress,
+                    sdk.provider
+                )
                 txHash = await sdk.videoPayment.updateContentPrice(
                     contentId,
-                    ethers.utils.parseEther(updateForm.newPrice),
+                    priceAmount,
                     finalTokenAddress
                 )
             } else {
@@ -352,7 +416,10 @@ export function ContentManager({ sdk }: ContentManagerProps) {
     }
 
     // Reset status functions - ensure complete state reset
-    const resetCreateStatus = () => setCreateStatus({ loading: false, success: false, error: null, txHash: undefined })
+    const resetCreateStatus = () => setCreateStatus({
+        configStep: { loading: false, success: false, error: null },
+        nftStep: { loading: false, success: false, error: null }
+    })
     const resetQueryStatus = () => setQueryStatus({ loading: false, success: false, error: null })
     const resetUpdateStatus = () => setUpdateStatus({ loading: false, success: false, error: null, txHash: undefined })
 
@@ -442,47 +509,117 @@ export function ContentManager({ sdk }: ContentManagerProps) {
 
                     <Button
                         onClick={createContent}
-                        disabled={createStatus.loading}
+                        disabled={createStatus.configStep.loading || createStatus.nftStep.loading}
                         className="w-full"
                     >
-                        {createStatus.loading ? (
+                        {createStatus.configStep.loading ? (
                             <>
                                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Creating...
+                                Creating Config...
+                            </>
+                        ) : createStatus.nftStep.loading ? (
+                            <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Minting NFT...
                             </>
                         ) : (
                             'Create Content'
                         )}
                     </Button>
 
-                    {/* Create Status - Enhanced error display */}
-                    {createStatus.error && !createStatus.success && (
-                        <ErrorDisplay
-                            error={createStatus.error}
-                            onClose={resetCreateStatus}
-                        />
+                    {/* Create Status - Two-step display */}
+                    {(createStatus.configStep.error || createStatus.nftStep.error) && (
+                        <div className="space-y-2">
+                            {createStatus.configStep.error && (
+                                <ErrorDisplay
+                                    error={createStatus.configStep.error}
+                                    onClose={resetCreateStatus}
+                                />
+                            )}
+                            {createStatus.nftStep.error && (
+                                <ErrorDisplay
+                                    error={createStatus.nftStep.error}
+                                    onClose={resetCreateStatus}
+                                />
+                            )}
+                        </div>
                     )}
-                    {createStatus.success && !createStatus.error && (
-                        <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md p-3 flex items-start justify-between">
-                            <div className="flex items-start">
-                                <Check className="h-5 w-5 text-green-500 mr-2 mt-0.5" />
-                                <div>
-                                    <p className="text-green-700 dark:text-green-300">Content created successfully!</p>
-                                    {createStatus.txHash && (
-                                        <div className="mt-2">
-                                            <p className="text-green-700 dark:text-green-300 text-sm font-medium mb-1">
-                                                Transaction Hash:
-                                            </p>
-                                            <p className="text-green-600 dark:text-green-400 text-sm break-all bg-green-100 dark:bg-green-900 p-2 rounded">
-                                                {createStatus.txHash}
+
+                    {(createStatus.configStep.success || createStatus.nftStep.success) && (
+                        <div className="space-y-3">
+                            {/* Config Step Status */}
+                            {createStatus.configStep.success && (
+                                <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md p-3">
+                                    <div className="flex items-start">
+                                        <Check className="h-5 w-5 text-green-500 mr-2 mt-0.5" />
+                                        <div className="flex-1">
+                                            <p className="text-green-700 dark:text-green-300 font-medium">Content Configuration Created</p>
+                                            {createStatus.configStep.txHash && (
+                                                <div className="mt-2">
+                                                    <p className="text-green-700 dark:text-green-300 text-sm font-medium mb-1">
+                                                        Config Transaction:
+                                                    </p>
+                                                    <p className="text-green-600 dark:text-green-400 text-sm break-all bg-green-100 dark:bg-green-900 p-2 rounded font-mono">
+                                                        {createStatus.configStep.txHash}
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* NFT Step Status */}
+                            {createStatus.nftStep.success && (
+                                <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md p-3">
+                                    <div className="flex items-start">
+                                        <Check className="h-5 w-5 text-blue-500 mr-2 mt-0.5" />
+                                        <div className="flex-1">
+                                            <p className="text-blue-700 dark:text-blue-300 font-medium">ContentNFT Minted Successfully</p>
+                                            <div className="mt-2 space-y-2">
+                                                {createStatus.nftStep.tokenId && (
+                                                    <div>
+                                                        <p className="text-blue-700 dark:text-blue-300 text-sm font-medium mb-1">
+                                                            Token ID:
+                                                        </p>
+                                                        <p className="text-blue-600 dark:text-blue-400 text-sm bg-blue-100 dark:bg-blue-900 p-2 rounded font-mono">
+                                                            {createStatus.nftStep.tokenId}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                                {createStatus.nftStep.txHash && (
+                                                    <div>
+                                                        <p className="text-blue-700 dark:text-blue-300 text-sm font-medium mb-1">
+                                                            NFT Transaction:
+                                                        </p>
+                                                        <p className="text-blue-600 dark:text-blue-400 text-sm break-all bg-blue-100 dark:bg-blue-900 p-2 rounded font-mono">
+                                                            {createStatus.nftStep.txHash}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Complete Success Message */}
+                            {createStatus.configStep.success && createStatus.nftStep.success && (
+                                <div className="bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 rounded-md p-3 flex items-start justify-between">
+                                    <div className="flex items-start">
+                                        <Check className="h-5 w-5 text-emerald-500 mr-2 mt-0.5" />
+                                        <div>
+                                            <p className="text-emerald-700 dark:text-emerald-300 font-medium">Content Creation Complete!</p>
+                                            <p className="text-emerald-600 dark:text-emerald-400 text-sm mt-1">
+                                                Both content configuration and ContentNFT have been successfully created.
                                             </p>
                                         </div>
-                                    )}
+                                    </div>
+                                    <button onClick={resetCreateStatus} className="text-emerald-500 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300">
+                                        <X className="h-4 w-4" />
+                                    </button>
                                 </div>
-                            </div>
-                            <button onClick={resetCreateStatus} className="text-green-500 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300">
-                                <X className="h-4 w-4" />
-                            </button>
+                            )}
                         </div>
                     )}
                 </CardContent>
@@ -561,7 +698,7 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                                 .filter(([address]) => address !== ethers.constants.AddressZero)
                                 .length > 0 && (
                                     <div className="mt-4">
-                                        <span className="text-sm text-gray-600 dark:text-gray-400">Token Prices:</span>
+                                        <span className="text-sm text-gray-600 dark:text-gray-400">Payments:</span>
                                         <div className="mt-2 space-y-2">
                                             {Object.entries(contentInfo.tokenPrices)
                                                 .filter(([address]) => address !== ethers.constants.AddressZero)
@@ -574,7 +711,7 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                                                             </div>
                                                             <div className="ml-4 text-right">
                                                                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Price:</p>
-                                                                <p className="font-medium text-gray-900 dark:text-gray-100">{price} tokens</p>
+                                                                <p className="font-medium text-gray-900 dark:text-gray-100">{price}</p>
                                                             </div>
                                                         </div>
                                                     </div>

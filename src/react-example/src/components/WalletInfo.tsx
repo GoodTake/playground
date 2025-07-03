@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { GoTakeSDK } from '@gotake/gotake-sdk'
+import { useAccount } from 'wagmi'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 import { Button } from './ui/Button'
 import { formatAddress } from '../lib/utils'
-import { Wallet, Coins, Hash, RefreshCw } from 'lucide-react'
+import { Wallet, Coins, Hash, RefreshCw, AlertTriangle } from 'lucide-react'
+import { isNetworkSupported, getNetworkInfo } from '../lib/network-utils'
 
 interface WalletInfoProps {
     sdk: GoTakeSDK
@@ -12,10 +14,15 @@ interface WalletInfoProps {
 }
 
 export function WalletInfo({ sdk, address, networkName }: WalletInfoProps) {
+    const { chain } = useAccount()
     const [balance, setBalance] = useState<string>('0')
     const [tbas, setTBAs] = useState<any[]>([])
     const [nfts, setNFTs] = useState<any[]>([])
     const [loading, setLoading] = useState(false)
+
+    // Check if current network is supported by SDK
+    const networkSupported = isNetworkSupported(chain!.id)
+    const networkInfo = getNetworkInfo(chain!.id)
 
     const fetchWalletData = async () => {
         setLoading(true)
@@ -45,6 +52,21 @@ export function WalletInfo({ sdk, address, networkName }: WalletInfoProps) {
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Network Support Warning */}
+            {!networkSupported && (
+                <Card className="col-span-full border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950">
+                    <CardContent className="pt-6">
+                        <div className="flex items-center space-x-2 text-yellow-800 dark:text-yellow-200">
+                            <AlertTriangle className="h-4 w-4" />
+                            <span className="text-sm font-medium">Network Not Fully Supported</span>
+                        </div>
+                        <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-2">
+                            {networkName} may not have all GoTake contracts deployed. Some features may be unavailable.
+                        </p>
+                    </CardContent>
+                </Card>
+            )}
+
             {/* Wallet Overview */}
             <Card className="col-span-full">
                 <CardHeader className="flex flex-row items-center justify-between">
@@ -74,7 +96,23 @@ export function WalletInfo({ sdk, address, networkName }: WalletInfoProps) {
                         </div>
                         <div className="space-y-2">
                             <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Network</p>
-                            <p className="text-sm text-gray-900 dark:text-gray-100">{networkName}</p>
+                            <div className="flex items-center space-x-2">
+                                <p className="text-sm text-gray-900 dark:text-gray-100">{networkName}</p>
+                                {networkSupported ? (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                        Supported
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                        Limited
+                                    </span>
+                                )}
+                            </div>
+                            {networkInfo && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    Chain ID: {networkInfo.id}
+                                </p>
+                            )}
                         </div>
                         <div className="space-y-2">
                             <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Balance</p>

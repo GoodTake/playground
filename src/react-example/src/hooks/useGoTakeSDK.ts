@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { GoTakeSDK } from '@gotake/gotake-sdk'
 import { useAccount, useWalletClient } from 'wagmi'
 import { walletClientToSigner } from './walletClientToSigner'
+import { getNetworkInfo } from '../lib/network-utils'
 
 export function useGoTakeSDK() {
     const { address, isConnected, chain } = useAccount()
@@ -11,15 +12,16 @@ export function useGoTakeSDK() {
     const [error, setError] = useState<string | null>(null)
 
     const networkName = useMemo(() => {
-        if (!chain) return 'Base Sepolia'
-
-        switch (chain.id) {
-            case 84532: return 'Base Sepolia'
-            case 8453: return 'Base Mainnet'
-            case 1: return 'Ethereum Mainnet'
-            case 11155111: return 'Ethereum Sepolia'
-            default: return 'Base Sepolia'
+        if (!chain) {
+            throw new Error('No blockchain network connected')
         }
+
+        const networkInfo = getNetworkInfo(chain.id)
+        if (!networkInfo) {
+            throw new Error(`Network ${chain.id} is not supported by GoTake SDK`)
+        }
+
+        return networkInfo.name
     }, [chain])
 
     useEffect(() => {

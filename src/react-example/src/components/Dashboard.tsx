@@ -3,7 +3,6 @@ import { useGoTakeSDK } from '../hooks/useGoTakeSDK'
 import { Navigation } from './Navigation'
 import { WalletInfo } from './WalletInfo'
 import { TBAManager } from './TBAManager'
-import { NFTMinter } from './NFTMinter'
 import { VideoPurchaser } from './VideoPurchaser'
 import { PermissionManager } from './PermissionManager'
 import { ContentManager } from './ContentManager'
@@ -48,8 +47,6 @@ export function Dashboard() {
         switch (activeItem) {
             case 'wallet':
                 return <WalletInfo sdk={sdk!} address={address!} networkName={networkName!} />
-            case 'mint':
-                return <NFTMinter sdk={sdk!} address={address!} />
             case 'tba':
                 return <TBAManager sdk={sdk!} />
             case 'video-purchase':

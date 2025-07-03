@@ -19,4 +19,14 @@ export function formatTokenId(tokenId: string | number): string {
     const id = tokenId.toString()
     if (id.length <= 8) return id
     return `${id.slice(0, 4)}...${id.slice(-4)}`
+}
+
+export function formatTokenSymbol(symbol: string): string {
+    if (!symbol) return 'tokens'
+    return symbol.length > 10 ? `${symbol.slice(0, 10)}...` : symbol
+}
+
+export function formatTokenPrice(price: string, symbol?: string): string {
+    const formattedSymbol = formatTokenSymbol(symbol || 'tokens')
+    return `${price} ${formattedSymbol}`
 } 

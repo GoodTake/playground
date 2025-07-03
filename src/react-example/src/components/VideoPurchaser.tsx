@@ -14,6 +14,7 @@ import {
     Clock
 } from 'lucide-react'
 import { ethers } from 'ethers'
+import { batchFormatTokenAmountsWithSymbol } from '../lib/token-utils'
 
 interface VideoPurchaserProps {
     sdk: GoTakeSDK
@@ -113,17 +114,19 @@ export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
                 }
             }
 
+            // Format token prices with correct decimals and symbols
+            const formattedTokenPrices = await batchFormatTokenAmountsWithSymbol(
+                rawInfo.tokenPrices || {},
+                sdk.provider
+            )
+
             const contentInfo: ContentInfo = {
                 contentId,
                 isActive: rawInfo.isActive,
                 defaultViewCount: rawInfo.defaultViewCount,
                 viewDuration: rawInfo.viewDuration,
                 nativePrice: ethers.utils.formatEther(rawInfo.nativePrice),
-                tokenPrices: Object.fromEntries(
-                    Object.entries(rawInfo.tokenPrices || {}).map(([addr, price]) =>
-                        [addr, ethers.utils.formatEther(price)]
-                    )
-                ),
+                tokenPrices: formattedTokenPrices,
                 userHasAccess: hasAccess,
                 remainingViews,
                 purchaseTime,
@@ -179,18 +182,7 @@ export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
         }
     }
 
-    // Check current token allowance
-    const checkTokenAllowance = async (tokenAddress: string, requiredAmount: string, spenderAddress: string): Promise<boolean> => {
-        try {
-            const tokenContract = getTokenContract(tokenAddress)
-            const allowance = await tokenContract.allowance(address, spenderAddress)
-            const requiredWei = ethers.utils.parseEther(requiredAmount)
-            return allowance.gte(requiredWei)
-        } catch (error) {
-            console.error('Error checking allowance:', error)
-            return false
-        }
-    }
+    // Check current token allowance - removed unused function
 
     // Execute token approval
     const executeTokenApprove = async (spenderAddress: string, tokenAddress: string, amount: string) => {
@@ -601,7 +593,7 @@ export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
                                         ` - ${purchaseFlow.contentInfo.tokenPrices[ethers.constants.AddressZero]} ETH`
                                     }
                                     {purchaseFlow.selectedPaymentMethod === 'ERC20' && purchaseFlow.selectedTokenAddress &&
-                                        ` - ${purchaseFlow.contentInfo.tokenPrices[purchaseFlow.selectedTokenAddress]} Tokens`
+                                        ` - ${purchaseFlow.contentInfo.tokenPrices[purchaseFlow.selectedTokenAddress]}`
                                     }
                                 </Button>
                             </CardContent>

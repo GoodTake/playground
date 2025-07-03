@@ -15,13 +15,39 @@ export interface NFTMetadata {
     image?: string
 }
 
-export interface IPNFTDetails {
+export interface ContentNFTDetails {
     tokenId: string
     title: string
     description: string
     owner: string
     creator: string
     tokenURI: string
+}
+
+export interface CreateAccountParams {
+    recipientAddress: string
+    accountName?: string
+    accountDescription?: string
+}
+
+export interface TransferParams {
+    fromType: 'EOA' | 'TBA'
+    toType: 'EOA' | 'TBA'
+    tokenType: 'ETH' | 'ERC20'
+    tokenAddress?: string
+    amount: string
+    tbaAddress?: string
+}
+
+export interface ContentCreationParams {
+    contentId: string
+    title: string
+    description: string
+    nativePrice: string
+    viewCount: string
+    durationHours: string
+    isActive: boolean
+    tags?: string[]
 }
 
 export interface WalletInfo {
@@ -35,7 +61,7 @@ export interface WalletInfo {
 export interface AppState {
     wallet: WalletInfo | null
     tbas: TBAInfo[]
-    nfts: IPNFTDetails[]
+    nfts: ContentNFTDetails[]
     loading: boolean
     error: string | null
 }
@@ -43,7 +69,7 @@ export interface AppState {
 export type AppAction =
     | { type: 'SET_WALLET'; payload: WalletInfo }
     | { type: 'SET_TBAS'; payload: TBAInfo[] }
-    | { type: 'SET_NFTS'; payload: IPNFTDetails[] }
+    | { type: 'SET_NFTS'; payload: ContentNFTDetails[] }
     | { type: 'SET_LOADING'; payload: boolean }
     | { type: 'SET_ERROR'; payload: string | null }
     | { type: 'RESET' }
@@ -290,4 +316,59 @@ export interface BatchPurchaseResult {
     successCount: number
     totalCount: number
     successRate: number
+}
+
+// Network and Contract Types
+export interface NetworkInfo {
+    id: number
+    name: string
+    rpcUrl: string
+    blockExplorer: string
+    nativeCurrency: {
+        name: string
+        symbol: string
+        decimals: number
+    }
+    maxPriorityFeePerGas: string
+}
+
+export interface ContractAddresses {
+    contentNFT?: string
+    videoPayment?: string
+    registry?: string
+    accountImplementation?: string
+    mockERC20?: string
+    accountNFT?: string
+}
+
+export interface NetworkConfig {
+    networkInfo: NetworkInfo
+    contractAddresses: ContractAddresses
+    isSupported: boolean
+}
+
+// Enhanced token information interfaces
+export interface TokenInfo {
+    address: string
+    decimals: number
+    symbol?: string
+    name?: string
+}
+
+export interface EnhancedTokenPrice {
+    address: string
+    amount: string
+    formattedAmount: string
+    tokenInfo?: TokenInfo
+}
+
+// Enhanced content info with better token support
+export interface EnhancedContentInfo {
+    contentId: number
+    isActive: boolean
+    defaultViewCount: number
+    viewDuration: number
+    nativePrice: string
+    tokenPrices: Record<string, string>
+    enhancedTokenPrices?: EnhancedTokenPrice[]
 } 
