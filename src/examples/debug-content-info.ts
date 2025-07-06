@@ -25,8 +25,23 @@ async function main() {
     const sdk = new GoTakeSDK({ provider, signer })
     await sdk.videoPayment.init()
 
+    console.log(`Network ID: ${sdk.networkId}`)
+    const network = await sdk.provider.getNetwork()
+    console.log(`Network Name: ${network.name}`)
+    console.log(`Chain ID: ${network.chainId}`)
+
+    // Debug: Show contract address being used
+    const wrapper = await (sdk.videoPayment as any).getVideoPaymentWrapper()
+    const contractAddress = (wrapper as any).contract.address
+    console.log(`Contract Address: ${contractAddress}`)
+
     const contentId = 8888
     const info = await sdk.videoPayment.getContentInfo(contentId)
+
+    // Debug: Let's see what the wrapper actually returns
+    const rawPurchaseInfo = await wrapper.getContentPurchaseInfo(contentId)
+    console.log('Raw contract data:', rawPurchaseInfo)
+
     console.log(info)
     console.log(`Content ID: ${contentId}`)
     console.log(`Native Price (wei): ${info.nativePrice.toString()}`)
@@ -36,7 +51,8 @@ async function main() {
 
     console.log('Token Prices:')
     for (const [token, price] of Object.entries(info.tokenPrices)) {
-        console.log(`  ${token}: ${price.toString()} wei | ${ethers.utils.formatEther(price)} units`)
+        const priceValue = price as ethers.BigNumber
+        console.log(`  ${token}: ${priceValue.toString()} wei | ${ethers.utils.formatEther(priceValue)} units`)
     }
 }
 

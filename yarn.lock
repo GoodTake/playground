@@ -828,14 +828,14 @@
   resolved "https://registry.npmjs.org/@fastify/busboy/-/busboy-2.1.1.tgz"
   integrity sha512-vBZP4NlzfOlerQTnba4aqZoMhE/a9HY7HRqoOPaETQcSQuWEIyZMHGfVu6w9wGtGK5fED5qRs2DteVCjOH60sA==
 
-"@gotake/gotake-sdk@^0.1.0":
-  version "0.1.0"
-  resolved "https://registry.npmjs.org/@gotake/gotake-sdk/-/gotake-sdk-0.1.0.tgz"
-  integrity sha512-lEQG+fYTpbeiNK7Z+/to8ItxGjzLERuB11uGNZr/JMbPw3o0q2Qbd73Nq4Vz9dbBAHwjLJbI69CKjsjbrBREJg==
+"@gotake/gotake-sdk@^0.1.2":
+  version "0.1.2"
+  resolved "https://registry.npmjs.org/@gotake/gotake-sdk/-/gotake-sdk-0.1.2.tgz"
+  integrity sha512-Bxfa2s0ETLULpRpmXRvQj8jmSXUF92rWzJL5P9sLME0NLJ1AsUDJU/90Y7/o8mvt1mA0DOXSQzF7bii3GlruTQ==
   dependencies:
     ethers "^5.7.2"
     fetch-blob "^3.2.0"
-    gotake-contracts "^0.2.1"
+    gotake-contracts "^0.2.3"
   optionalDependencies:
     dotenv "^16.5.0"
 
@@ -2512,10 +2512,10 @@ gopd@^1.0.1, gopd@^1.2.0:
   resolved "https://registry.npmjs.org/gopd/-/gopd-1.2.0.tgz"
   integrity sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==
 
-gotake-contracts@^0.2.1:
-  version "0.2.1"
-  resolved "https://registry.npmjs.org/gotake-contracts/-/gotake-contracts-0.2.1.tgz"
-  integrity sha512-pCeKEwMPRp9vTn9pH+wYSIu8B1FU2QMZ5oeyPCGWcrLx3BLhheqHlwA1D9rYwr1cvczD5HfB+Q7mA753HEY/vQ==
+gotake-contracts@^0.2.3:
+  version "0.2.3"
+  resolved "https://registry.npmjs.org/gotake-contracts/-/gotake-contracts-0.2.3.tgz"
+  integrity sha512-qFGL31VEP4uPzjCrfVfo7NmbLmlCeIGmsYB2JvYF+5yNVwUmSe1SLS0+t2Z29wX9D+eeWVfefgXRGmVOWjKR7w==
   dependencies:
     "@openzeppelin/contracts-upgradeable" "^5.3.0"
     "@openzeppelin/hardhat-upgrades" "^3.9.0"
