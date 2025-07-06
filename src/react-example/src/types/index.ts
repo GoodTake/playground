@@ -45,7 +45,6 @@ export interface ContentCreationParams {
     description: string
     nativePrice: string
     viewCount: string
-    durationHours: string
     isActive: boolean
     tags?: string[]
 }
@@ -97,8 +96,7 @@ export interface PermissionData {
 export interface ContentConfig {
     contentId: number
     nativePrice: string
-    defaultViewCount: number
-    viewDuration: number
+    viewCount: number
     isActive: boolean
 }
 
@@ -107,8 +105,7 @@ export interface MultiCurrencyContentConfig {
     contentId: number
     nativePrice: string  // ETH price
     tokenPrices?: Record<string, string>  // ERC20 token price mapping
-    defaultViewCount: number
-    viewDuration: number
+    viewCount: number
     isActive: boolean
 }
 
@@ -116,8 +113,7 @@ export interface BatchMultiCurrencyConfig {
     contentIds: number[]
     nativePrices: string[]
     tokenPricesArray?: Record<string, string>[]  // Token prices for each content
-    defaultViewCounts: number[]
-    viewDurations: number[]
+    viewCounts: number[]
     isActiveArray: boolean[]
 }
 
@@ -139,8 +135,7 @@ export interface PaymentOptions {
 export interface SDKContentInfo {
     contentId: number
     isActive: boolean
-    defaultViewCount: number
-    viewDuration: number
+    viewCount: number
     nativePrice: any  // BigNumber from SDK
     tokenPrices: Record<string, any>  // BigNumber values from SDK
 }
@@ -158,8 +153,7 @@ export interface SDKPurchaseResult {
 export interface BatchContentConfig {
     contentIds: number[]
     nativePrices: string[]
-    defaultViewCounts: number[]
-    viewDurations: number[]
+    viewCounts: number[]
     isActiveArray: boolean[]
 }
 
@@ -254,7 +248,6 @@ export interface ContentSummary {
     status: 'Available' | 'Inactive' | 'Error'
     priceETH?: string
     viewCount?: number
-    duration?: number
     isActive?: boolean
     error?: string
 }
@@ -271,7 +264,6 @@ export interface ContentConfig {
     contentId: number
     priceETH: string
     viewCount: number
-    durationHours: number
     isActive: boolean
 }
 
@@ -279,8 +271,7 @@ export interface ContentConfig {
 export interface ContentInfoData {
     contentId: number
     isActive: boolean
-    defaultViewCount: number
-    viewDuration: number
+    viewCount: number
     nativePrice: string
     tokenPrices: Record<string, string>
     userHasAccess?: boolean
@@ -366,8 +357,7 @@ export interface EnhancedTokenPrice {
 export interface EnhancedContentInfo {
     contentId: number
     isActive: boolean
-    defaultViewCount: number
-    viewDuration: number
+    viewCount: number
     nativePrice: string
     tokenPrices: Record<string, string>
     enhancedTokenPrices?: EnhancedTokenPrice[]

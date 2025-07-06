@@ -24,10 +24,11 @@ interface VideoPurchaserProps {
 interface ContentInfo {
     contentId: number
     isActive: boolean
-    defaultViewCount: number
-    viewDuration: number
+    viewCount: number
     nativePrice: string
+    rawNativePrice: ethers.BigNumber
     tokenPrices: Record<string, string>
+    rawTokenPrices: Record<string, ethers.BigNumber>
     userHasAccess: boolean
     remainingViews?: number
     purchaseTime?: Date
@@ -35,13 +36,11 @@ interface ContentInfo {
 }
 
 interface PurchaseFlow {
-    step: 'input' | 'info' | 'approve' | 'processing' | 'complete'
+    step: 'input' | 'info' | 'processing' | 'complete'
     contentId: string
     contentInfo: ContentInfo | null
     selectedPaymentMethod: 'ETH' | 'ERC20'
     selectedTokenAddress?: string
-    needsApproval?: boolean
-    approveStatus?: 'idle' | 'processing' | 'complete' | 'error'
 }
 
 interface OperationStatus {
@@ -49,8 +48,8 @@ interface OperationStatus {
     success: boolean
     error: string | null
     txHash?: string
+    operation?: 'purchase' | 'approve'
     approveHash?: string
-    operation?: 'approve' | 'purchase'
 }
 
 export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
@@ -123,10 +122,11 @@ export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
             const contentInfo: ContentInfo = {
                 contentId,
                 isActive: rawInfo.isActive,
-                defaultViewCount: rawInfo.defaultViewCount,
-                viewDuration: rawInfo.viewDuration,
+                viewCount: rawInfo.viewCount,
                 nativePrice: ethers.utils.formatEther(rawInfo.nativePrice),
+                rawNativePrice: rawInfo.nativePrice,
                 tokenPrices: formattedTokenPrices,
+                rawTokenPrices: rawInfo.tokenPrices || {},
                 userHasAccess: hasAccess,
                 remainingViews,
                 purchaseTime,
@@ -170,28 +170,65 @@ export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
         return new ethers.Contract(tokenAddress, tokenABI, sdk.signer)
     }
 
-    // Try to get contract address from transaction error
-    const extractContractAddressFromError = (error: any): string | null => {
+    // Get VideoPayment contract address
+    const getVideoPaymentContractAddress = async (): Promise<string> => {
+        // Initialize video payment if not already done
+        await sdk.videoPayment.init()
+
+        // Get the contract address from the SDK
+        const wrapper = (sdk.videoPayment as any)._videoPaymentWrapper
+        if (wrapper && wrapper.getContractAddress) {
+            return wrapper.getContractAddress('videoPayment')
+        }
+
+        // Fallback: try to get from the contract instance
+        const contractInstance = (sdk.videoPayment as any).contract
+        if (contractInstance && contractInstance.address) {
+            return contractInstance.address
+        }
+
+        throw new Error('Unable to get VideoPayment contract address')
+    }
+
+    // Check token allowance
+    const checkTokenAllowance = async (tokenAddress: string, spenderAddress: string, requiredAmount: ethers.BigNumber): Promise<boolean> => {
         try {
-            const errorString = error.toString()
-            // Look for contract address patterns in error messages
-            const addressMatch = errorString.match(/0x[a-fA-F0-9]{40}/)
-            return addressMatch ? addressMatch[0] : null
-        } catch {
-            return null
+            const tokenContract = getTokenContract(tokenAddress)
+            const userAddress = await sdk.getAddress()
+            const allowance = await tokenContract.allowance(userAddress, spenderAddress)
+
+            if (process.env.NODE_ENV !== 'production') {
+                console.debug('allowance check', {
+                    tokenAddress,
+                    spenderAddress,
+                    userAddress,
+                    allowance: allowance.toString(),
+                    required: requiredAmount.toString(),
+                    sufficient: allowance.gte(requiredAmount)
+                })
+            }
+
+            return allowance.gte(requiredAmount)
+        } catch (error) {
+            console.error('Error checking allowance:', error)
+            return false
         }
     }
 
-    // Check current token allowance - removed unused function
-
     // Execute token approval
-    const executeTokenApprove = async (spenderAddress: string, tokenAddress: string, amount: string) => {
+    const executeTokenApprove = async (tokenAddress: string, spenderAddress: string, amount: ethers.BigNumber) => {
         try {
             const tokenContract = getTokenContract(tokenAddress)
-            const amountWei = ethers.utils.parseEther(amount)
 
-            // Request approval for the exact amount needed
-            const approveTx = await tokenContract.approve(spenderAddress, amountWei)
+            if (process.env.NODE_ENV !== 'production') {
+                console.debug('approving token', {
+                    tokenAddress,
+                    spenderAddress,
+                    amount: amount.toString()
+                })
+            }
+
+            const approveTx = await tokenContract.approve(spenderAddress, amount)
             return approveTx
         } catch (error) {
             throw error
@@ -207,11 +244,36 @@ export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
 
         try {
             const { contentId } = purchaseFlow.contentInfo
+
+            // Get optimal gas configuration
+            const gasPrices = await sdk.getGasPrice({
+                multiplier: 1.2,  // 20% buffer for base fee
+                priorityMultiplier: 1.1  // 10% buffer for priority fee
+            })
+
+            const gasConfig = {
+                maxFeePerGas: gasPrices.maxFeePerGas,
+                maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas
+            }
+
             let result: any
 
             if (purchaseFlow.selectedPaymentMethod === 'ETH') {
-                // Purchase with ETH using SDK
-                result = await sdk.videoPayment.purchaseContent(contentId, 'ETH')
+                if (process.env.NODE_ENV !== 'production') {
+                    console.debug('purchase params', {
+                        contentId,
+                        paymentType: 'ETH',
+                        gasConfig
+                    })
+                }
+
+                result = await sdk.videoPayment.purchaseContent(contentId, 'ETH', undefined, {
+                    gasConfig
+                })
+
+                if (process.env.NODE_ENV !== 'production') {
+                    console.debug('purchase result', result)
+                }
             } else {
                 // Purchase with ERC20 token using SDK
                 if (!purchaseFlow.selectedTokenAddress) {
@@ -219,57 +281,63 @@ export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
                 }
 
                 const tokenAddress = purchaseFlow.selectedTokenAddress
-                const requiredAmount = purchaseFlow.contentInfo.tokenPrices[tokenAddress]
+                const requiredAmount = purchaseFlow.contentInfo.rawTokenPrices[tokenAddress]
 
-                // For ERC20 tokens, automatically do approval first then purchase
-                try {
-                    // Set approve operation status
+                if (!requiredAmount) {
+                    throw new Error('Price data not available for selected token')
+                }
+
+                // Get VideoPayment contract address
+                const spenderAddress = await getVideoPaymentContractAddress()
+
+                if (process.env.NODE_ENV !== 'production') {
+                    console.debug('purchase params', {
+                        contentId,
+                        paymentType: 'ERC20',
+                        tokenAddress,
+                        requiredAmount: requiredAmount.toString(),
+                        spenderAddress,
+                        gasConfig
+                    })
+                }
+
+                // Step 1: Check allowance
+                const hasSufficientAllowance = await checkTokenAllowance(tokenAddress, spenderAddress, requiredAmount)
+
+                if (!hasSufficientAllowance) {
+                    // Step 2: Approve tokens
                     setStatus(prev => ({ ...prev, operation: 'approve' }))
 
-                    // Get contract address through a test purchase call
-                    let spenderAddress: string | null = null
-                    try {
-                        await sdk.videoPayment.purchaseContent(contentId, 'ERC20', tokenAddress)
-                        // If purchase succeeds, we already had approval
-                        result = await sdk.videoPayment.purchaseContent(contentId, 'ERC20', tokenAddress)
-                    } catch (purchaseError: any) {
-                        // Purchase failed - extract contract address and do approval
-                        spenderAddress = extractContractAddressFromError(purchaseError)
+                    const approveTx = await executeTokenApprove(tokenAddress, spenderAddress, requiredAmount)
 
-                        if (!spenderAddress) {
-                            // Can't get contract address, use a simplified error
-                            throw new Error('Token approval required but contract address could not be determined. Please try again or contact support.')
-                        }
-
-                        // Execute approval automatically
-                        const approveTx = await executeTokenApprove(spenderAddress, tokenAddress, requiredAmount)
-
-                        setStatus(prev => ({
-                            ...prev,
-                            approveHash: approveTx.hash
-                        }))
-
-                        // Wait for approval to be mined
-                        await approveTx.wait()
-
-                        // Now try purchase again
-                        setStatus(prev => ({ ...prev, operation: 'purchase' }))
-                        result = await sdk.videoPayment.purchaseContent(contentId, 'ERC20', tokenAddress)
+                    if (process.env.NODE_ENV !== 'production') {
+                        console.debug('approve transaction', {
+                            hash: approveTx.hash,
+                            tokenAddress,
+                            spenderAddress,
+                            amount: requiredAmount.toString()
+                        })
                     }
 
-                } catch (error: any) {
-                    // Simplify error messages for better display
-                    let errorMessage = error.message || 'Transaction failed'
-                    if (errorMessage.length > 150) {
-                        if (errorMessage.includes('gas')) {
-                            errorMessage = 'Gas estimation failed. Please check your network connection and ETH balance.'
-                        } else if (errorMessage.includes('allowance') || errorMessage.includes('approve')) {
-                            errorMessage = 'Token approval failed. Please try again.'
-                        } else {
-                            errorMessage = 'Transaction failed. Please check your network and balance.'
-                        }
+                    setStatus(prev => ({ ...prev, approveHash: approveTx.hash }))
+
+                    // Wait for approval to be mined
+                    await approveTx.wait()
+
+                    if (process.env.NODE_ENV !== 'production') {
+                        console.debug('approve transaction mined')
                     }
-                    throw new Error(errorMessage)
+                }
+
+                // Step 3: Execute purchase
+                setStatus(prev => ({ ...prev, operation: 'purchase' }))
+
+                result = await sdk.videoPayment.purchaseContent(contentId, 'ERC20', tokenAddress, {
+                    gasConfig
+                })
+
+                if (process.env.NODE_ENV !== 'production') {
+                    console.debug('purchase result', result)
                 }
             }
 
@@ -284,10 +352,26 @@ export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
             setPurchaseFlow(prev => ({ ...prev, step: 'complete' }))
 
         } catch (error) {
+            if (process.env.NODE_ENV !== 'production') {
+                console.debug('purchase error', error)
+            }
+
+            // Simplify error messages for better display
+            let errorMessage = error instanceof Error ? error.message : 'Purchase failed'
+            if (errorMessage.length > 150) {
+                if (errorMessage.includes('gas')) {
+                    errorMessage = 'Gas estimation failed. Please check your network connection and ETH balance.'
+                } else if (errorMessage.includes('allowance') || errorMessage.includes('approve')) {
+                    errorMessage = 'Token approval failed. Please try again.'
+                } else {
+                    errorMessage = 'Transaction failed. Please check your network and balance.'
+                }
+            }
+
             setStatus({
                 loading: false,
                 success: false,
-                error: error instanceof Error ? error.message : 'Purchase failed',
+                error: errorMessage,
                 operation: 'purchase'
             })
             setPurchaseFlow(prev => ({ ...prev, step: 'info' }))
@@ -300,9 +384,7 @@ export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
             step: 'input',
             contentId: '',
             contentInfo: null,
-            selectedPaymentMethod: 'ETH',
-            needsApproval: false,
-            approveStatus: 'idle'
+            selectedPaymentMethod: 'ETH'
         })
         setStatus({
             loading: false,
@@ -314,15 +396,7 @@ export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
         })
     }
 
-    // Format duration display
-    const formatDuration = (seconds: number) => {
-        const hours = Math.floor(seconds / 3600)
-        const minutes = Math.floor((seconds % 3600) / 60)
-        if (hours > 0) {
-            return `${hours}h ${minutes}m`
-        }
-        return `${minutes}m`
-    }
+
 
     return (
         <div className="space-y-6 max-w-4xl mx-auto overflow-hidden">
@@ -335,14 +409,14 @@ export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
             {purchaseFlow.step !== 'input' && (
                 <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                     <div className="flex items-center justify-between">
-                        <div className={`flex items-center ${purchaseFlow.step === 'info' || purchaseFlow.step === 'approve' || purchaseFlow.step === 'processing' || purchaseFlow.step === 'complete' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
-                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-medium ${purchaseFlow.step === 'info' || purchaseFlow.step === 'approve' || purchaseFlow.step === 'processing' || purchaseFlow.step === 'complete' ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300'}`}>
-                                {purchaseFlow.step === 'info' || purchaseFlow.step === 'approve' || purchaseFlow.step === 'processing' || purchaseFlow.step === 'complete' ? '✓' : '1'}
+                        <div className={`flex items-center ${purchaseFlow.step === 'info' || purchaseFlow.step === 'processing' || purchaseFlow.step === 'complete' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
+                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-medium ${purchaseFlow.step === 'info' || purchaseFlow.step === 'processing' || purchaseFlow.step === 'complete' ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300'}`}>
+                                {purchaseFlow.step === 'info' || purchaseFlow.step === 'processing' || purchaseFlow.step === 'complete' ? '✓' : '1'}
                             </div>
                             <span className="ml-2 text-sm font-medium">Content Info</span>
                         </div>
-                        <div className={`flex items-center ${purchaseFlow.step === 'approve' && purchaseFlow.selectedPaymentMethod === 'ERC20' ? 'text-blue-600 dark:text-blue-400' : purchaseFlow.step === 'processing' || purchaseFlow.step === 'complete' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
-                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-medium ${purchaseFlow.step === 'processing' || purchaseFlow.step === 'complete' ? 'border-blue-600 bg-blue-600 text-white' : (purchaseFlow.step === 'approve' && purchaseFlow.selectedPaymentMethod === 'ERC20') ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300'}`}>
+                        <div className={`flex items-center ${purchaseFlow.step === 'processing' || purchaseFlow.step === 'complete' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
+                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-medium ${purchaseFlow.step === 'processing' || purchaseFlow.step === 'complete' ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300'}`}>
                                 {purchaseFlow.step === 'processing' || purchaseFlow.step === 'complete' ? '✓' : '2'}
                             </div>
                             <span className="ml-2 text-sm font-medium">
@@ -444,13 +518,7 @@ export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         View Count
                                     </label>
-                                    <p className="text-gray-900 dark:text-gray-100">{purchaseFlow.contentInfo.defaultViewCount} views</p>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                        Duration
-                                    </label>
-                                    <p className="text-gray-900 dark:text-gray-100">{formatDuration(purchaseFlow.contentInfo.viewDuration)}</p>
+                                    <p className="text-gray-900 dark:text-gray-100">{purchaseFlow.contentInfo.viewCount} views</p>
                                 </div>
                             </div>
                         </CardContent>
@@ -535,7 +603,7 @@ export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
                                     </label>
                                     <div className="space-y-3">
                                         {/* ETH Payment Option - check if ETH is supported */}
-                                        {ethers.constants.AddressZero in purchaseFlow.contentInfo.tokenPrices && (
+                                        {ethers.constants.AddressZero in purchaseFlow.contentInfo.rawTokenPrices && (
                                             <div
                                                 className={`p-4 border rounded-lg cursor-pointer transition-colors ${purchaseFlow.selectedPaymentMethod === 'ETH'
                                                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
@@ -549,7 +617,7 @@ export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
                                                         <p className="text-sm text-gray-600 dark:text-gray-400">Native Ethereum payment</p>
                                                     </div>
                                                     <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                                                        {purchaseFlow.contentInfo.tokenPrices[ethers.constants.AddressZero]} ETH
+                                                        {purchaseFlow.contentInfo.nativePrice} ETH
                                                     </p>
                                                 </div>
                                             </div>
@@ -589,8 +657,8 @@ export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
                                 <Button onClick={executePurchase} className="w-full" disabled={!purchaseFlow.selectedPaymentMethod}>
                                     <ShoppingCart className="h-4 w-4 mr-2" />
                                     Purchase Access
-                                    {purchaseFlow.selectedPaymentMethod === 'ETH' && ethers.constants.AddressZero in purchaseFlow.contentInfo.tokenPrices &&
-                                        ` - ${purchaseFlow.contentInfo.tokenPrices[ethers.constants.AddressZero]} ETH`
+                                    {purchaseFlow.selectedPaymentMethod === 'ETH' && ethers.constants.AddressZero in purchaseFlow.contentInfo.rawTokenPrices &&
+                                        ` - ${purchaseFlow.contentInfo.nativePrice} ETH`
                                     }
                                     {purchaseFlow.selectedPaymentMethod === 'ERC20' && purchaseFlow.selectedTokenAddress &&
                                         ` - ${purchaseFlow.contentInfo.tokenPrices[purchaseFlow.selectedTokenAddress]}`
@@ -611,12 +679,12 @@ export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
                         <div className="text-center">
                             <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-blue-500" />
                             <p className="text-lg font-medium text-gray-900 dark:text-gray-100">
-                                {status.operation === 'approve' ? 'Processing Approval' : 'Processing Purchase'}
+                                {status.operation === 'approve' ? 'Processing Token Approval' : 'Processing Purchase'}
                             </p>
                             <p className="text-gray-600 dark:text-gray-400 mt-2">
                                 {status.operation === 'approve'
                                     ? 'Please wait while we process your token approval...'
-                                    : 'Please wait while we process your transaction...'}
+                                    : 'Please wait while we process your purchase...'}
                             </p>
                             {(status.txHash || status.approveHash) && (
                                 <div className="mt-4">
@@ -646,7 +714,7 @@ export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
                                     {status.approveHash && (
                                         <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-md">
                                             <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                Approval Transaction:
+                                                Token Approval Transaction:
                                             </p>
                                             <p className="text-xs text-gray-600 dark:text-gray-400 break-all font-mono">
                                                 {status.approveHash}
@@ -682,7 +750,7 @@ export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
                             <X className="h-5 w-5 text-red-500 mr-3 mt-0.5 flex-shrink-0" />
                             <div className="min-w-0 flex-1">
                                 <p className="font-medium text-red-800 dark:text-red-200 mb-1">
-                                    {status.operation === 'approve' ? 'Approval Failed' : 'Purchase Failed'}
+                                    {status.operation === 'approve' ? 'Token Approval Failed' : 'Purchase Failed'}
                                 </p>
                                 <div className="text-sm text-red-700 dark:text-red-300 break-words overflow-hidden">
                                     {status.error.length > 200 ? (
@@ -690,7 +758,7 @@ export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
                                             <summary className="font-medium">
                                                 {status.error.includes('gas') ? 'Gas estimation failed' :
                                                     status.error.includes('allowance') ? 'Token allowance insufficient' :
-                                                        status.error.includes('approve') ? 'Token approval required' :
+                                                        status.error.includes('approve') ? 'Token approval failed' :
                                                             'Transaction failed'}
                                             </summary>
                                             <div className="mt-2 p-2 bg-red-100 dark:bg-red-900 rounded text-xs font-mono max-h-32 overflow-y-auto">
@@ -701,11 +769,17 @@ export function VideoPurchaser({ sdk, address }: VideoPurchaserProps) {
                                         <p>{status.error}</p>
                                     )}
                                 </div>
-                                {status.operation === 'approve' && (
+                                {status.operation === 'approve' ? (
                                     <div className="mt-2 text-xs text-red-600 dark:text-red-400">
                                         <p>• Make sure you have enough tokens for the approval</p>
                                         <p>• Check that you're connected to the correct network</p>
                                         <p>• Ensure your wallet has sufficient ETH for gas fees</p>
+                                    </div>
+                                ) : (
+                                    <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                                        <p>• Make sure you have enough ETH for gas fees</p>
+                                        <p>• Check that you're connected to the correct network</p>
+                                        <p>• Verify your wallet has sufficient token balance</p>
                                     </div>
                                 )}
                             </div>

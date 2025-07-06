@@ -13,8 +13,7 @@ interface ContentManagerProps {
 interface ContentInfo {
     contentId: number
     isActive: boolean
-    defaultViewCount: number
-    viewDuration: number
+    viewCount: number
     nativePrice: string
     tokenPrices: Record<string, string>
 }
@@ -137,10 +136,11 @@ export function ContentManager({ sdk }: ContentManagerProps) {
     // Create content state
     const [createForm, setCreateForm] = useState({
         contentId: '',
-        nativePrice: '',
+        price: '',
         viewCount: '',
-        durationHours: '',
-        isActive: true
+        isActive: true,
+        paymentType: 'ETH' as 'ETH' | 'ERC20',
+        tokenAddress: ''
     })
     const [createStatus, setCreateStatus] = useState<CreateContentStatus>({
         configStep: { loading: false, success: false, error: null },
@@ -196,9 +196,8 @@ export function ContentManager({ sdk }: ContentManagerProps) {
             // Validate inputs
             const contentId = parseInt(createForm.contentId)
             const viewCount = parseInt(createForm.viewCount)
-            const durationHours = parseFloat(createForm.durationHours)
 
-            if (isNaN(contentId) || isNaN(viewCount) || isNaN(durationHours)) {
+            if (isNaN(contentId) || isNaN(viewCount)) {
                 throw new Error('Please provide valid numeric values')
             }
 
@@ -207,30 +206,40 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                 throw new Error('View count cannot be negative (0 = unlimited views)')
             }
 
-            if (durationHours <= 0) {
-                throw new Error('Duration must be greater than 0')
+            // Validate price and token
+            const priceInput = createForm.price.trim()
+            if (priceInput === '') {
+                throw new Error('Price is required')
             }
-
-            // Validate native price (allow 0 for ERC20-only content)
-            let nativePriceValue = '0'
-            if (createForm.nativePrice && createForm.nativePrice.trim() !== '') {
+            let finalTokenAddress = ethers.constants.AddressZero
+            if (createForm.paymentType === 'ERC20') {
+                if (!createForm.tokenAddress) {
+                    throw new Error('Token address is required for ERC20 payment')
+                }
+                if (!ethers.utils.isAddress(createForm.tokenAddress)) {
+                    throw new Error('Invalid token address format')
+                }
+                finalTokenAddress = createForm.tokenAddress
+                // Validate ERC20 price via decimals
+                await parseTokenAmount(priceInput, finalTokenAddress, sdk.provider)
+            } else {
+                // Validate ETH price
                 try {
-                    const priceWei = ethers.utils.parseEther(createForm.nativePrice)
-                    if (priceWei.lt(0)) {
-                        throw new Error('Native price cannot be negative')
+                    const priceWei = ethers.utils.parseEther(priceInput)
+                    if (priceWei.lte(0)) {
+                        throw new Error('Price must be greater than 0')
                     }
-                    nativePriceValue = createForm.nativePrice
                 } catch {
-                    throw new Error('Invalid native price format')
+                    throw new Error('Invalid price format')
                 }
             }
 
             // Step 1: Execute content configuration
             const configTxHash = await sdk.videoPayment.setContentConfig({
                 contentId,
-                nativePrice: nativePriceValue,
-                defaultViewCount: viewCount,
-                viewDuration: durationHours * 3600, // Convert hours to seconds
+                price: priceInput,
+                token: finalTokenAddress,
+                viewCount,
                 isActive: createForm.isActive
             })
 
@@ -244,8 +253,8 @@ export function ContentManager({ sdk }: ContentManagerProps) {
             // Step 2: Mint ContentNFT
             const userAddress = await sdk.getAddress()
             const contentTitle = `Content #${contentId}`
-            const priceDescription = nativePriceValue === '0' ? 'ERC20-only payment' : `${nativePriceValue} ETH price`
-            const contentDescription = `Content created with ${priceDescription}, ${viewCount === 0 ? 'unlimited' : viewCount} views, ${durationHours}h duration`
+            const priceDescription = `${priceInput} ${createForm.paymentType === 'ETH' ? 'ETH' : 'token'} price`
+            const contentDescription = `Content created with ${priceDescription}, ${viewCount === 0 ? 'unlimited' : viewCount} views`
 
             const mintResult = await sdk.contentNFT.mint(userAddress, {
                 title: contentTitle,
@@ -271,10 +280,11 @@ export function ContentManager({ sdk }: ContentManagerProps) {
             // Reset form after complete success
             setCreateForm({
                 contentId: '',
-                nativePrice: '',
+                price: '',
                 viewCount: '',
-                durationHours: '',
-                isActive: true
+                isActive: true,
+                paymentType: 'ETH',
+                tokenAddress: ''
             })
 
         } catch (error) {
@@ -319,8 +329,7 @@ export function ContentManager({ sdk }: ContentManagerProps) {
             const info: ContentInfo = {
                 contentId,
                 isActive: rawInfo.isActive,
-                defaultViewCount: rawInfo.defaultViewCount,
-                viewDuration: rawInfo.viewDuration,
+                viewCount: rawInfo.viewCount,
                 nativePrice: ethers.utils.formatEther(rawInfo.nativePrice),
                 tokenPrices: formattedTokenPrices
             }
@@ -381,14 +390,14 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                     finalTokenAddress,
                     sdk.provider
                 )
-                txHash = await sdk.videoPayment.updateContentPrice(
+                txHash = await sdk.videoPayment.setContentPrice(
                     contentId,
                     priceAmount,
                     finalTokenAddress
                 )
             } else {
                 // ETH price update
-                txHash = await sdk.videoPayment.updateContentPrice(
+                txHash = await sdk.videoPayment.setContentPrice(
                     contentId,
                     ethers.utils.parseEther(updateForm.newPrice)
                 )
@@ -459,19 +468,43 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Native Price (ETH)
+                                Payment Type
+                            </label>
+                            <select
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                value={createForm.paymentType}
+                                onChange={(e) => setCreateForm({ ...createForm, paymentType: e.target.value as 'ETH' | 'ERC20' })}
+                            >
+                                <option value="ETH">ETH (Native)</option>
+                                <option value="ERC20">ERC20 Token</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Price
                             </label>
                             <input
                                 type="text"
                                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="0.001 or leave empty for ERC20-only"
-                                value={createForm.nativePrice}
-                                onChange={(e) => setCreateForm({ ...createForm, nativePrice: e.target.value })}
+                                placeholder="0.001"
+                                value={createForm.price}
+                                onChange={(e) => setCreateForm({ ...createForm, price: e.target.value })}
                             />
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                Leave empty or enter 0 to use ERC20 tokens only
-                            </p>
                         </div>
+                        {createForm.paymentType === 'ERC20' && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Token Address
+                                </label>
+                                <input
+                                    type="text"
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="0x..."
+                                    value={createForm.tokenAddress}
+                                    onChange={(e) => setCreateForm({ ...createForm, tokenAddress: e.target.value })}
+                                />
+                            </div>
+                        )}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 View Count
@@ -487,19 +520,7 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                                 Enter 0 for unlimited views, or any positive number for limited views
                             </p>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Duration (Hours)
-                            </label>
-                            <input
-                                type="number"
-                                step="0.1"
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="24"
-                                value={createForm.durationHours}
-                                onChange={(e) => setCreateForm({ ...createForm, durationHours: e.target.value })}
-                            />
-                        </div>
+
                     </div>
 
                     <div className="flex items-center">
@@ -688,12 +709,8 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                                 <div>
                                     <span className="text-sm text-gray-600 dark:text-gray-400">View Count:</span>
                                     <p className="font-medium text-gray-900 dark:text-gray-100">
-                                        {contentInfo.defaultViewCount === 0 ? 'Unlimited' : contentInfo.defaultViewCount}
+                                        {contentInfo.viewCount === 0 ? 'Unlimited' : contentInfo.viewCount}
                                     </p>
-                                </div>
-                                <div>
-                                    <span className="text-sm text-gray-600 dark:text-gray-400">Duration:</span>
-                                    <p className="font-medium text-gray-900 dark:text-gray-100">{Math.floor(contentInfo.viewDuration / 3600)} hours</p>
                                 </div>
                                 <div>
                                     <span className="text-sm text-gray-600 dark:text-gray-400">Native Price:</span>
