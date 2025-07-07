@@ -243,6 +243,14 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                 isActive: createForm.isActive
             })
 
+            // Wait for config transaction to be mined and 1 additional block confirmation
+            console.log('Waiting for content configuration to be confirmed...')
+            const configTx = await sdk.provider.getTransaction(configTxHash)
+            if (configTx) {
+                await configTx.wait(1) // Wait for 1 block confirmation
+                console.log('Content configuration confirmed, proceeding to NFT mint...')
+            }
+
             // Update config step success
             setCreateStatus(prev => ({
                 ...prev,
@@ -263,7 +271,8 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                 creator: userAddress
             })
 
-            const mintReceipt = await mintResult.tx.wait()
+            const mintReceipt = await mintResult.tx.wait(1) // Wait for 1 block confirmation
+            console.log('NFT mint confirmed')
 
             // Update NFT step success
             setCreateStatus(prev => ({

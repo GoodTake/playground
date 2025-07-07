@@ -1,289 +1,35 @@
-import { useState, useEffect } from 'react'
 import { GoTakeSDK } from '@gotake/gotake-sdk'
 import { useAccount } from 'wagmi'
-import { ethers } from 'ethers'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 import { Button } from './ui/Button'
 import { formatAddress } from '../lib/utils'
 import { Plus, Coins, RefreshCw, ArrowUpDown, Wallet } from 'lucide-react'
 import { getBlockExplorerUrl } from '../lib/network-utils'
+import { useTBAManager } from '../hooks/useTBAManager'
 
 interface TBAManagerProps {
     sdk: GoTakeSDK
 }
 
-interface AccountNFTInfo {
-    tokenId: string
-    owner: string
-    tbaAddress: string
-    ethBalance: string
-    erc20Balances: Record<string, string>
-    accountInfo: {
-        name: string
-        description: string
-        establishedAt: string
-    }
-}
-
-interface TransferStatus {
-    status: 'idle' | 'transferring' | 'success' | 'error'
-    txHash?: string
-    error?: string
-}
-
-interface CreateAccountStatus {
-    status: 'idle' | 'creating' | 'success' | 'error'
-    accountNFTTx?: string
-    tbaTx?: string
-    tokenId?: string
-    tbaAddress?: string
-    error?: string
-}
-
 export function TBAManager({ sdk }: TBAManagerProps) {
     const { chain } = useAccount()
-    const [accounts, setAccounts] = useState<AccountNFTInfo[]>([])
-    const [loading, setLoading] = useState(false)
-    const [createStatus, setCreateStatus] = useState<CreateAccountStatus>({ status: 'idle' })
-    const [transferStatus, setTransferStatus] = useState<TransferStatus>({ status: 'idle' })
 
-    // Transfer form state
-    const [transferDirection, setTransferDirection] = useState<'EOA_TO_TBA' | 'TBA_TO_EOA'>('EOA_TO_TBA')
-    const [transferType, setTransferType] = useState<'ETH' | 'ERC20'>('ETH')
-    const [transferAmount, setTransferAmount] = useState('')
-    const [selectedTBA, setSelectedTBA] = useState('')
-    const [erc20Address, setErc20Address] = useState('')
+    const {
+        // State
+        accounts,
+        loading,
+        createStatus,
+        transferStatus,
+        transferForm,
 
-    // Fetch user's AccountNFTs and their TBAs
-    const fetchAccounts = async () => {
-        setLoading(true)
-        try {
-            // For now, we'll check if user has any AccountNFT by trying to create one
-            // In a real implementation, you'd query the AccountNFT contract for user's tokens
-            // This is a simplified approach for the demo
-            setAccounts([])
-        } catch (error) {
-            console.error('Error fetching accounts:', error)
-            setAccounts([])
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    // Create new user account (AccountNFT + TBA)
-    const createNewAccount = async () => {
-        setCreateStatus({ status: 'creating' })
-
-        try {
-            const userAddress = await sdk.getAddress()
-
-            console.log('Creating new user account...')
-
-            const result = await sdk.account.createNewUserAccount({
-                recipientAddress: userAddress,
-                accountNFTMetadata: {
-                    uri: `account://${userAddress}/metadata`
-                },
-                tbaConfig: {
-                    salt: '0x0000000000000000000000000000000000000000000000000000000000000000'
-                }
-            })
-
-            console.log('Account creation result:', result)
-
-            // Wait for transactions to be mined
-            const accountNFTReceipt = await result.accountNFT.tx.wait()
-            const tbaReceipt = await result.tba.tx.wait()
-
-            setCreateStatus({
-                status: 'success',
-                accountNFTTx: accountNFTReceipt.transactionHash,
-                tbaTx: tbaReceipt.transactionHash,
-                tokenId: result.accountNFT.tokenId.toString(),
-                tbaAddress: result.tba.tbaAddress
-            })
-
-            // Wait for next block before querying account details
-            const currentBlock = await sdk.provider.getBlockNumber()
-            const targetBlock = currentBlock + 1
-
-            // Wait for target block
-            await new Promise((resolve) => {
-                const checkBlock = async () => {
-                    const latestBlock = await sdk.provider.getBlockNumber()
-                    if (latestBlock >= targetBlock) {
-                        resolve(undefined)
-                    } else {
-                        setTimeout(checkBlock, 1000) // Check every second
-                    }
-                }
-                checkBlock()
-            })
-
-            // Now fetch account details
-            try {
-                await fetchAccountDetails(result.accountNFT.tokenId.toString(), result.tba.tbaAddress)
-            } catch (error) {
-                console.warn('Failed to fetch account details after creation, but account was created successfully:', error)
-            }
-
-        } catch (error) {
-            console.error('Error creating account:', error)
-            setCreateStatus({
-                status: 'error',
-                error: error instanceof Error ? error.message : 'Failed to create account'
-            })
-        }
-    }
-
-    // Fetch detailed account information
-    const fetchAccountDetails = async (tokenId: string, tbaAddress: string) => {
-        try {
-            const userAddress = await sdk.getAddress()
-
-            // Get TBA ETH balance
-            const ethBalance = await sdk.provider.getBalance(tbaAddress)
-            const ethBalanceFormatted = ethers.utils.formatEther(ethBalance)
-
-            // Get account info from AccountNFT
-            const accountInfo = await sdk.account.getAccountInfo(tokenId)
-
-            const accountData: AccountNFTInfo = {
-                tokenId,
-                owner: userAddress,
-                tbaAddress,
-                ethBalance: ethBalanceFormatted,
-                erc20Balances: {}, // TODO: Implement ERC20 balance fetching
-                accountInfo: {
-                    name: accountInfo.name,
-                    description: accountInfo.description,
-                    establishedAt: new Date(accountInfo.establishedAt.toNumber() * 1000).toLocaleString()
-                }
-            }
-
-            setAccounts(prev => {
-                const existing = prev.find(acc => acc.tokenId === tokenId)
-                if (existing) {
-                    return prev.map(acc => acc.tokenId === tokenId ? accountData : acc)
-                } else {
-                    return [...prev, accountData]
-                }
-            })
-
-        } catch (error) {
-            console.error('Error fetching account details:', error)
-        }
-    }
-
-    // Execute transfer between EOA and TBA
-    const executeTransfer = async () => {
-        if (!selectedTBA || !transferAmount) {
-            return
-        }
-
-        setTransferStatus({ status: 'transferring' })
-
-        try {
-            const userAddress = await sdk.getAddress()
-            let txHash: string
-
-            if (transferType === 'ETH') {
-                if (transferDirection === 'EOA_TO_TBA') {
-                    // Send ETH from EOA to TBA
-                    const tx = await sdk.signer.sendTransaction({
-                        to: selectedTBA,
-                        value: ethers.utils.parseEther(transferAmount)
-                    })
-                    const receipt = await tx.wait()
-                    txHash = receipt.transactionHash
-                } else {
-                    // Send ETH from TBA to EOA
-                    const result = await sdk.account.executeTBATransaction({
-                        accountAddress: selectedTBA,
-                        to: userAddress,
-                        value: ethers.utils.parseEther(transferAmount),
-                        data: '0x'
-                    })
-                    const receipt = await result.tx.wait()
-                    txHash = receipt.transactionHash
-                }
-            } else {
-                // ERC20 transfer
-                if (!erc20Address) {
-                    throw new Error('ERC20 contract address is required')
-                }
-
-                const erc20Interface = new ethers.utils.Interface([
-                    'function transfer(address to, uint256 amount) returns (bool)',
-                    'function transferFrom(address from, address to, uint256 amount) returns (bool)'
-                ])
-
-                if (transferDirection === 'EOA_TO_TBA') {
-                    // Transfer ERC20 from EOA to TBA
-                    const erc20Contract = new ethers.Contract(erc20Address, [
-                        'function transfer(address to, uint256 amount) returns (bool)',
-                        'function decimals() view returns (uint8)'
-                    ], sdk.signer)
-
-                    const decimals = await erc20Contract.decimals()
-                    const amount = ethers.utils.parseUnits(transferAmount, decimals)
-
-                    const tx = await erc20Contract.transfer(selectedTBA, amount)
-                    const receipt = await tx.wait()
-                    txHash = receipt.transactionHash
-                } else {
-                    // Transfer ERC20 from TBA to EOA
-                    const erc20Contract = new ethers.Contract(erc20Address, [
-                        'function decimals() view returns (uint8)'
-                    ], sdk.provider)
-
-                    const decimals = await erc20Contract.decimals()
-                    const amount = ethers.utils.parseUnits(transferAmount, decimals)
-
-                    const transferData = erc20Interface.encodeFunctionData('transfer', [userAddress, amount])
-
-                    const result = await sdk.account.executeTBATransaction({
-                        accountAddress: selectedTBA,
-                        to: erc20Address,
-                        value: 0,
-                        data: transferData
-                    })
-                    const receipt = await result.tx.wait()
-                    txHash = receipt.transactionHash
-                }
-            }
-
-            setTransferStatus({
-                status: 'success',
-                txHash
-            })
-
-            // Reset form
-            setTransferAmount('')
-            setErc20Address('')
-
-            // Refresh account details
-            const account = accounts.find(acc => acc.tbaAddress === selectedTBA)
-            if (account) {
-                await fetchAccountDetails(account.tokenId, account.tbaAddress)
-            }
-
-        } catch (error) {
-            console.error('Error executing transfer:', error)
-            setTransferStatus({
-                status: 'error',
-                error: error instanceof Error ? error.message : 'Transfer failed'
-            })
-        }
-    }
-
-    // Reset status functions
-    const resetCreateStatus = () => setCreateStatus({ status: 'idle' })
-    const resetTransferStatus = () => setTransferStatus({ status: 'idle' })
-
-    useEffect(() => {
-        fetchAccounts()
-    }, [sdk])
+        // Actions
+        createAccount,
+        refreshAccounts,
+        transferFunds,
+        updateTransferForm,
+        resetCreateStatus,
+        resetTransferStatus,
+    } = useTBAManager(sdk)
 
     return (
         <div className="space-y-8">
@@ -350,7 +96,7 @@ export function TBAManager({ sdk }: TBAManagerProps) {
 
                     <div className="flex space-x-3">
                         <Button
-                            onClick={createNewAccount}
+                            onClick={createAccount}
                             disabled={createStatus.status === 'creating'}
                             className="flex-1"
                         >
@@ -383,7 +129,7 @@ export function TBAManager({ sdk }: TBAManagerProps) {
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={fetchAccounts}
+                        onClick={refreshAccounts}
                         disabled={loading}
                     >
                         {loading ? (
@@ -462,8 +208,8 @@ export function TBAManager({ sdk }: TBAManagerProps) {
                             <div>
                                 <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Transfer Direction</label>
                                 <select
-                                    value={transferDirection}
-                                    onChange={(e) => setTransferDirection(e.target.value as 'EOA_TO_TBA' | 'TBA_TO_EOA')}
+                                    value={transferForm.direction}
+                                    onChange={(e) => updateTransferForm({ direction: e.target.value as 'EOA_TO_TBA' | 'TBA_TO_EOA' })}
                                     className="w-full mt-2 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-950 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent transition-colors"
                                 >
                                     <option value="EOA_TO_TBA">Wallet → TBA</option>
@@ -474,8 +220,8 @@ export function TBAManager({ sdk }: TBAManagerProps) {
                             <div>
                                 <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Token Type</label>
                                 <select
-                                    value={transferType}
-                                    onChange={(e) => setTransferType(e.target.value as 'ETH' | 'ERC20')}
+                                    value={transferForm.type}
+                                    onChange={(e) => updateTransferForm({ type: e.target.value as 'ETH' | 'ERC20' })}
                                     className="w-full mt-2 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-950 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent transition-colors"
                                 >
                                     <option value="ETH">ETH</option>
@@ -487,8 +233,8 @@ export function TBAManager({ sdk }: TBAManagerProps) {
                         <div>
                             <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Select TBA</label>
                             <select
-                                value={selectedTBA}
-                                onChange={(e) => setSelectedTBA(e.target.value)}
+                                value={transferForm.selectedTBA}
+                                onChange={(e) => updateTransferForm({ selectedTBA: e.target.value })}
                                 className="w-full mt-2 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-950 text-sm font-mono text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent transition-colors"
                             >
                                 <option value="">Select TBA...</option>
@@ -500,14 +246,14 @@ export function TBAManager({ sdk }: TBAManagerProps) {
                             </select>
                         </div>
 
-                        {transferType === 'ERC20' && (
+                        {transferForm.type === 'ERC20' && (
                             <div>
                                 <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">ERC20 Contract Address</label>
                                 <input
                                     type="text"
                                     placeholder="0x..."
-                                    value={erc20Address}
-                                    onChange={(e) => setErc20Address(e.target.value)}
+                                    value={transferForm.erc20Address}
+                                    onChange={(e) => updateTransferForm({ erc20Address: e.target.value })}
                                     className="w-full mt-2 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-950 text-sm font-mono text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent transition-colors"
                                 />
                             </div>
@@ -517,9 +263,9 @@ export function TBAManager({ sdk }: TBAManagerProps) {
                             <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Amount</label>
                             <input
                                 type="text"
-                                placeholder={transferType === 'ETH' ? '0.001' : '100'}
-                                value={transferAmount}
-                                onChange={(e) => setTransferAmount(e.target.value)}
+                                placeholder={transferForm.type === 'ETH' ? '0.001' : '100'}
+                                value={transferForm.amount}
+                                onChange={(e) => updateTransferForm({ amount: e.target.value })}
                                 className="w-full mt-2 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-950 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent transition-colors"
                             />
                         </div>
@@ -564,12 +310,12 @@ export function TBAManager({ sdk }: TBAManagerProps) {
 
                         <div className="flex space-x-3">
                             <Button
-                                onClick={executeTransfer}
+                                onClick={transferFunds}
                                 disabled={
                                     transferStatus.status === 'transferring' ||
-                                    !selectedTBA ||
-                                    !transferAmount ||
-                                    (transferType === 'ERC20' && !erc20Address)
+                                    !transferForm.selectedTBA ||
+                                    !transferForm.amount ||
+                                    (transferForm.type === 'ERC20' && !transferForm.erc20Address)
                                 }
                                 className="flex-1"
                             >
