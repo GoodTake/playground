@@ -46,6 +46,13 @@ interface ErrorDisplayProps {
     onClose: () => void
 }
 
+interface TokenInfo {
+    decimals: number
+    address: string
+    name: string | null
+    symbol: string
+}
+
 function ErrorDisplay({ error, onClose }: ErrorDisplayProps) {
     const [showFullError, setShowFullError] = useState(false)
 
@@ -163,6 +170,7 @@ export function ContentManager({ sdk }: ContentManagerProps) {
         paymentType: 'ETH' as 'ETH' | 'ERC20',
         tokenAddress: ''
     })
+    const [tokenList, setTokenList] = useState<TokenInfo[]>([])
     const [updateStatus, setUpdateStatus] = useState<OperationStatus>({
         loading: false,
         success: false,
@@ -787,7 +795,20 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                             <select
                                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 value={updateForm.paymentType}
-                                onChange={(e) => setUpdateForm({ ...updateForm, paymentType: e.target.value as 'ETH' | 'ERC20' })}
+                                onChange={async (e) => {
+                                    setUpdateForm({ ...updateForm, paymentType: e.target.value as 'ETH' | 'ERC20' });
+                                    console.log("paymentType onChange", e.target.value);
+                                    // 获取所有网络的完整信息
+                                    if (e.target.value === 'ERC20') {
+                                        let networdk = await sdk.provider.getNetwork();
+                                        console.log(networdk);
+                                        const allInfo = sdk.getNetworkInfo(networdk.chainId);
+                                        setTokenList(allInfo.tokens.slice(1));
+                                        setUpdateForm({ ...updateForm, paymentType: e.target.value as 'ETH' | 'ERC20', tokenAddress: allInfo.tokens[1].address });
+                                        console.log(updateForm); // Base主网的token信息}
+                                    }
+                                }
+                                }
                             >
                                 <option value="ETH">ETH (Native)</option>
                                 <option value="ERC20">ERC20 Token</option>
@@ -810,13 +831,28 @@ export function ContentManager({ sdk }: ContentManagerProps) {
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                     Token Address
                                 </label>
-                                <input
+                                <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+
+                                    value={updateForm.tokenAddress}
+                                    onChange={(e) => {
+                                        setUpdateForm({ ...updateForm, tokenAddress: e.target.value });
+                                        console.log("onChange tokenAddress:",e.target.value);
+                                    }
+                                    }
+                                >
+                                    {tokenList.map((token: TokenInfo) => (
+                                        <option key={token.address} value={token.address}>
+                                            ({token.symbol}){token.address}
+                                        </option>
+                                    ))}
+                                </select>
+                                {/* <input
                                     type="text"
                                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     placeholder="0x..."
                                     value={updateForm.tokenAddress}
                                     onChange={(e) => setUpdateForm({ ...updateForm, tokenAddress: e.target.value })}
-                                />
+                                /> */}
                             </div>
                         )}
                     </div>
